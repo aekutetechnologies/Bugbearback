@@ -8,6 +8,7 @@ from .views import (
     UserPasswordResetView,
     UserDetails,
     UserProfilePic,
+    UserTypes,
 )
 
 urlpatterns = [
@@ -28,4 +29,5 @@ urlpatterns = [
     path("sso/", include("allauth.urls")),
     path("user-details/", UserDetails.as_view(), name="user-details"),
     path("upload-profile-pic/", UserProfilePic.as_view(), name="upload-profile-pic"),
+    path("usertypes/", UserTypes.as_view(), name="usertypes"),
 ]

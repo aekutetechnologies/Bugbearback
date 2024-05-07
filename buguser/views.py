@@ -10,7 +10,7 @@ from .serializers import (
     UserRegistrationSerializer,
     BugUserDetailSerializer,
 )
-from .models import BugUserDetail
+from .models import BugUserDetail, UserType
 from django.contrib.auth import authenticate
 from .renderers import UserRenderer
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -174,3 +174,29 @@ class UserProfilePic(APIView):
             return Response({"profile_pic_path": bug_user.profile_pic.url}, status=200)
         else:
             return Response({"error": "No profile pic uploaded"}, status=400)
+
+    def get(self, request):
+        user = request.user
+        try:
+            bug_user = BugUserDetail.objects.get(user=user)
+            return Response({"profile_pic_path": bug_user.profile_pic.url}, status=200)
+        except BugUserDetail.DoesNotExist:
+            return Response(
+                {"error": "User does not have a BugUserDetail object"}, status=400
+            )
+
+
+class UserTypes(APIView):
+    renderer_classes = [UserRenderer]
+
+    def get(self, request):
+        user_types = UserType.objects.all()
+        return Response(
+            {
+                "user_types": [
+                    {"id": user_type.id, "name": user_type.name}
+                    for user_type in user_types
+                ]
+            },
+            status=200,
+        )
