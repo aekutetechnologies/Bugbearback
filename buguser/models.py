@@ -110,9 +110,68 @@ class BugUserDetail(models.Model):
     address = models.TextField(null=True, blank=True)
     phone = models.CharField(max_length=15, null=True, blank=True)
     profile_pic = models.ImageField(upload_to="profile_pics/")
+    gender = models.CharField(
+        max_length=10,
+        choices=(("Male", "Male"), ("Female", "Female")),
+        default="Male",
+        blank=False,
+    )
 
     def __str__(self):
         return self.user.name
+
+
+class BugBearSkill(models.Model):
+    id = models.AutoField(primary_key=True)
+    skill_name = models.CharField(max_length=50)
+    skill_description = models.TextField()
+    skill_logo = models.ImageField(upload_to="skill_logos/")
+
+    def __str__(self):
+        return self.skill_name
+
+
+class BugUserSkill(models.Model):
+    id = models.AutoField(primary_key=True)
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    skill = models.ForeignKey(BugBearSkill, on_delete=models.CASCADE)
+    skill_level = models.CharField(
+        max_length=20,
+        choices=(
+            ("Beginner", "Beginner"),
+            ("Intermediate", "Intermediate"),
+            ("Expert", "Expert"),
+        ),
+        default="Beginner",
+        blank=False,
+    )
+
+    def __str__(self):
+        return self.user.email
+
+
+class CommunicationLanguage(models.Model):
+    id = models.AutoField(primary_key=True)
+    language_name = models.CharField(max_length=50)
+
+    def __str__(self):
+        return self.language_name
+
+
+class UsersCommunicationLanguage(models.Model):
+    id = models.AutoField(primary_key=True)
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    language = models.ForeignKey(CommunicationLanguage, on_delete=models.CASCADE)
+    language_level = models.CharField(
+        max_length=20,
+        choices=(
+            ("Beginner", "Beginner"),
+            ("Intermediate", "Intermediate"),
+            ("Expert", "Expert"),
+        ),
+        default="Beginner",
+        blank=False,
+    )
 
 
 class BugUserSession(models.Model):
