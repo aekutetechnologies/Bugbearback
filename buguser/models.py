@@ -117,9 +117,6 @@ class BugUserDetail(models.Model):
         blank=False,
     )
 
-    def __str__(self):
-        return self.user.name
-
 
 class BugBearSkill(models.Model):
     id = models.AutoField(primary_key=True)

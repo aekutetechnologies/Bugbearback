@@ -17,6 +17,8 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.permissions import IsAuthenticated
 
 from .models import User
+from utils.sendmail import Util
+from django.conf import settings
 
 
 # Generate Token Manually
@@ -156,6 +158,9 @@ class UserDetails(APIView):
         try:
             bug_user_detail = BugUserDetail.objects.get(user=user)
             serializer = BugUserDetailSerializer(bug_user_detail)
+            serializer.data["profile_pic"] = "http://127.0.0.1:8000" + str(
+                bug_user_detail.profile_pic.url
+            )
             return Response(serializer.data, status=status.HTTP_200_OK)
         except BugUserDetail.DoesNotExist:
             return Response(status=status.HTTP_404_NOT_FOUND)
@@ -181,9 +186,10 @@ class UserProfilePic(APIView):
             # Save the uploaded profile picture
             profile_pic = request.FILES["profile_pic"]
             bug_user.profile_pic.save(profile_pic.name, profile_pic, save=True)
+            profile_pic_url = request.build_absolute_uri(bug_user.profile_pic.url)
 
             # Return the profile pic path in the response
-            return Response({"profile_pic_path": bug_user.profile_pic.url}, status=200)
+            return Response({"profile_pic_path": profile_pic_url}, status=200)
         else:
             return Response({"error": "No profile pic uploaded"}, status=400)
 
@@ -191,7 +197,8 @@ class UserProfilePic(APIView):
         user = request.user
         try:
             bug_user = BugUserDetail.objects.get(user=user)
-            return Response({"profile_pic_path": bug_user.profile_pic.url}, status=200)
+            profile_pic_url = request.build_absolute_uri(bug_user.profile_pic.url)
+            return Response({"profile_pic_path": profile_pic_url}, status=200)
         except BugUserDetail.DoesNotExist:
             return Response(
                 {"error": "User does not have a BugUserDetail object"}, status=400
@@ -212,3 +219,14 @@ class UserTypes(APIView):
             },
             status=200,
         )
+
+
+class SendEarlyInvites(APIView):
+    renderer_classes = [UserRenderer]
+
+    def post(self, request):
+        email = request.data.get("email")
+        if email:
+            body = "Hi, You have been invited to join Bugbear."
+            data = {"subject": "Bugbear Invitation", "body": body, "to_email": email}
+            Util.send_email(data)

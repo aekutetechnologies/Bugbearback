@@ -104,10 +104,11 @@ class UserProfileSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ["id", "email", "is_active", "user_type_name"]
+        fields = ["id", "email", "is_active", "user_type_name", "profile_pic_url"]
 
 
 class BugUserDetailSerializer(serializers.ModelSerializer):
+    profile_pic_url = serializers.SerializerMethodField()
 
     class Meta:
         model = BugUserDetail
@@ -120,9 +121,18 @@ class BugUserDetailSerializer(serializers.ModelSerializer):
             "city",
             "address",
             "phone",
-            "profile_pic",
+            "profile_pic_url",
         ]
         extra_kwargs = {"profile_pic": {"read_only": True}}
+
+    def get_profile_pic_url(self, obj):
+        try:
+            if obj.profile_pic:
+
+                return "http://127.0.0.1:8000" + str(obj.profile_pic.url)
+            return None
+        except BugUserDetail.DoesNotExist:
+            return None
 
 
 class UserChangePasswordSerializer(serializers.Serializer):
