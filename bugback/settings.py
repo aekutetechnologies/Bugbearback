@@ -48,6 +48,7 @@ INSTALLED_APPS = [
     "rest_framework_simplejwt",
     "buguser",
     "rest_framework",
+    "posts",
 ]
 
 MIDDLEWARE = [
@@ -158,12 +159,9 @@ AUTHENTICATION_BACKENDS = [
 AUTH_USER_MODEL = "buguser.User"
 
 # Email Configuration
-EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
-EMAIL_HOST = "smtp.gmail.com"
-EMAIL_PORT = 587
-EMAIL_HOST_USER = os.environ.get("EMAIL_USER")
-EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_PASS")
-EMAIL_USE_TLS = True
+EMAIL_HOST = "live.smtp.mailtrap.io"
+EMAIL_HOST_USER = "api"
+EMAIL_PORT = "587"
 
 # Internationalization
 # https://docs.djangoproject.com/en/5.0/topics/i18n/
@@ -201,7 +199,7 @@ PASSWORD_RESET_TIMEOUT = 900  # 900 Sec = 15 Min
 
 # JWT Settings
 SIMPLE_JWT = {
-    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=20),
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=240),
     "REFRESH_TOKEN_LIFETIME": timedelta(days=1),
     "AUTH_HEADER_TYPES": ("Bearer",),
     "AUTH_HEADER_NAME": "HTTP_AUTHORIZATION",

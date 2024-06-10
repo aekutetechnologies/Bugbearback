@@ -9,6 +9,7 @@ from .views import (
     UserDetails,
     UserProfilePic,
     UserTypes,
+    SendEarlyInvites,
 )
 
 urlpatterns = [
@@ -30,4 +31,5 @@ urlpatterns = [
     path("user-details/", UserDetails.as_view(), name="user-details"),
     path("upload-profile-pic/", UserProfilePic.as_view(), name="upload-profile-pic"),
     path("usertypes/", UserTypes.as_view(), name="usertypes"),
+    path("send-invite/", SendEarlyInvites.as_view(), name="send-invite"),
 ]

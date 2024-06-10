@@ -226,7 +226,15 @@ class SendEarlyInvites(APIView):
 
     def post(self, request):
         email = request.data.get("email")
+        name = request.data.get("name")
         if email:
-            body = "Hi, You have been invited to join Bugbear."
-            data = {"subject": "Bugbear Invitation", "body": body, "to_email": email}
+            data = {"name": name, "to_email": email}
             Util.send_email(data)
+
+            return Response(
+                {"msg": "Invitation sent successfully"}, status=status.HTTP_200_OK
+            )
+        else:
+            return Response(
+                {"error": "Email not provided"}, status=status.HTTP_400_BAD_REQUEST
+            )

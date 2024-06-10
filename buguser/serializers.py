@@ -219,3 +219,26 @@ class UserPasswordResetSerializer(serializers.Serializer):
         except DjangoUnicodeDecodeError as identifier:
             PasswordResetTokenGenerator().check_token(user, token)
             raise serializers.ValidationError("Token is not Valid or Expired")
+
+
+class PostUserSerializer(serializers.ModelSerializer):
+    profile_pic_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = BugUserDetail
+        fields = ["id", "first_name", "last_name", "profile_pic_url"]
+
+    def get_first_name(self, obj):
+        return obj.buguserdetail.first_name
+
+    def get_last_name(self, obj):
+        return obj.buguserdetail.last_name
+
+    def get_profile_pic_url(self, obj):
+        print(obj)
+        # Access the User object associated with the BugUserDetail object
+        user = obj.buguserdetail
+        # Now you can access the profile_pic field of the User object
+        if user.profile_pic:
+            return "http://127.0.0.1:8000" + str(user.profile_pic.url)
+        return None
