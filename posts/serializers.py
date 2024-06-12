@@ -10,7 +10,7 @@ class PostCategorySerializer(serializers.ModelSerializer):
 
 
 class PostSerializer(serializers.ModelSerializer):
-    post_likes = PostUserSerializer(many=True)
+    # post_likes = PostUserSerializer(many=True)
     post_image_url = serializers.SerializerMethodField()
     total_comments = serializers.SerializerMethodField()
     comments = serializers.SerializerMethodField()
@@ -28,7 +28,7 @@ class PostSerializer(serializers.ModelSerializer):
             "post_image_url",
             "total_comments",
             "comments",
-            "post_likes",
+            # "post_likes",
         ]
         read_only_fields = [
             "id",
@@ -39,7 +39,7 @@ class PostSerializer(serializers.ModelSerializer):
             "post_image_url",
             "total_comments",
             "comments",
-            "post_likes",
+            # "post_likes",
         ]
 
     def create(self, validated_data):
