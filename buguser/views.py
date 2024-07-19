@@ -9,12 +9,16 @@ from .serializers import (
     UserProfileSerializer,
     UserRegistrationSerializer,
     BugUserDetailSerializer,
+    MessageSerializer,
+    BugUserEducationSerializer,
 )
-from .models import BugUserDetail, UserType
+from .models import BugUserDetail, UserType, Message, BugUserEducation
 from django.contrib.auth import authenticate
 from .renderers import UserRenderer
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.permissions import IsAuthenticated
+from django.db.models import Count, Case, When, ForeignKey
+from django.db.models.deletion import CASCADE
 
 from .models import User
 from utils.sendmail import Util
@@ -238,3 +242,49 @@ class SendEarlyInvites(APIView):
             return Response(
                 {"error": "Email not provided"}, status=status.HTTP_400_BAD_REQUEST
             )
+
+
+class UserMessage(APIView):
+    renderer_classes = [UserRenderer]
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        serializer = MessageSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    def get(self, request):
+        user = request.user
+        messages = Message.objects.filter(author=user) | Message.objects.filter(
+            friend=user
+        )
+
+        # Serialize the messages
+        serializer = MessageSerializer(messages, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class UserEducationView(APIView):
+    renderer_classes = [UserRenderer]
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        # Get user from request
+        user = request.user
+
+        # add data to the BugUserEducationSerializer with the user
+        request.data["user"] = user.id
+        print(request.data)
+        serializer = BugUserEducationSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    def get(self, request):
+        # Get user from request
+        user = request.user
+
+        # get all the education details for the authenticated user
+        education_objs = BugUserEducation.objects.filter(user=user)
+        serializer = BugUserEducationSerializer(education_objs, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)

@@ -1,5 +1,12 @@
 from rest_framework import serializers
-from .models import User, BugUserDetail
+from .models import (
+    User,
+    BugUserDetail,
+    Message,
+    BugUserEducation,
+    BugBearSkill,
+    BugUserSkill,
+)
 from django.utils.encoding import smart_str, force_bytes, DjangoUnicodeDecodeError
 from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
 from django.contrib.auth.tokens import PasswordResetTokenGenerator
@@ -109,6 +116,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
 
 class BugUserDetailSerializer(serializers.ModelSerializer):
     profile_pic_url = serializers.SerializerMethodField()
+    email = serializers.SerializerMethodField()
 
     class Meta:
         model = BugUserDetail
@@ -122,6 +130,9 @@ class BugUserDetailSerializer(serializers.ModelSerializer):
             "address",
             "phone",
             "profile_pic_url",
+            "about_me",
+            "position",
+            "email",
         ]
         extra_kwargs = {"profile_pic": {"read_only": True}}
 
@@ -133,6 +144,9 @@ class BugUserDetailSerializer(serializers.ModelSerializer):
             return None
         except BugUserDetail.DoesNotExist:
             return None
+
+    def get_email(self, obj):
+        return obj.user.email
 
 
 class UserChangePasswordSerializer(serializers.Serializer):
@@ -223,22 +237,68 @@ class UserPasswordResetSerializer(serializers.Serializer):
 
 class PostUserSerializer(serializers.ModelSerializer):
     profile_pic_url = serializers.SerializerMethodField()
+    first_name = serializers.SerializerMethodField()
+    last_name = serializers.SerializerMethodField()
 
     class Meta:
         model = BugUserDetail
         fields = ["id", "first_name", "last_name", "profile_pic_url"]
 
     def get_first_name(self, obj):
+        print(obj.buguserdetail)
         return obj.buguserdetail.first_name
 
     def get_last_name(self, obj):
         return obj.buguserdetail.last_name
 
     def get_profile_pic_url(self, obj):
-        print(obj)
         # Access the User object associated with the BugUserDetail object
         user = obj.buguserdetail
         # Now you can access the profile_pic field of the User object
         if user.profile_pic:
             return "http://127.0.0.1:8000" + str(user.profile_pic.url)
         return None
+
+
+class MessageSerializer(serializers.ModelSerializer):
+    author = PostUserSerializer()
+    friend = PostUserSerializer()
+
+    class Meta:
+        model = Message
+        fields = ["id", "author", "friend", "message", "timestamp"]
+
+
+class BugUserEducationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = BugUserEducation
+        fields = [
+            "id",
+            "user",
+            "school_name",
+            "degree",
+            "field_of_study",
+            "start_date",
+            "end_date",
+        ]
+
+        # make id read_only
+        extra_kwargs = {"id": {"read_only": True}}
+
+
+class BugBearSkillSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = BugBearSkill
+        fields = ["id", "name", "description"]
+
+        # make id read_only
+        extra_kwargs = {"id": {"read_only": True}}
+
+
+class BugUserSkillSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = BugUserSkill
+        fields = ["id", "skill", "level", "experience"]
+
+        # make id read_only
+        extra_kwargs = {"id": {"read_only": True}}

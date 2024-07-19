@@ -49,6 +49,8 @@ INSTALLED_APPS = [
     "buguser",
     "rest_framework",
     "posts",
+    "comments",
+    "certificates",
 ]
 
 MIDDLEWARE = [

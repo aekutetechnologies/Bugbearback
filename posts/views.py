@@ -126,6 +126,7 @@ class LikePostView(APIView):
 
     def post(self, request, post_id, format=None):
         try:
+            print(post_id)
             post = get_object_or_404(Post, id=post_id)
 
             user = request.user
@@ -144,6 +145,7 @@ class LikePostView(APIView):
         except ValueError:
             raise ValidationError("Invalid post ID provided.")
         except Exception as e:
+            print(e)
             raise NotFound("Post not found.") from e
 
 
