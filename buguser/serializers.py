@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from django.conf import settings
 from .models import (
     User,
     BugUserDetail,
@@ -140,7 +141,7 @@ class BugUserDetailSerializer(serializers.ModelSerializer):
         try:
             if obj.profile_pic:
 
-                return "http://127.0.0.1:8000" + str(obj.profile_pic.url)
+                return settings.WEB_URL + str(obj.profile_pic.url)
             return None
         except BugUserDetail.DoesNotExist:
             return None
