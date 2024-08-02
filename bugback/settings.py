@@ -29,7 +29,7 @@ DEBUG = True
 
 ALLOWED_HOSTS = ["*", "bugbearback.onrender.com"]
 
-WEB_URL = "https://bugbearback.onrender.com/"
+WEB_URL = "https://bugbearback.onrender.com"
 # Application definition
 
 INSTALLED_APPS = [
