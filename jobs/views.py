@@ -1,7 +1,7 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from django.core.cache import cache
 from django.utils import timezone
 from .models import BugJob
@@ -45,6 +45,7 @@ class JobCreateView(APIView):
 
         # Prepare the job data
         job_data = {
+            'id': job.id,
             'title': job.title.lower(),
             'job_created': job.job_posted.isoformat(),
             'job_expiry': job.job_expiry.isoformat(),
@@ -91,6 +92,7 @@ class JobSearchView(APIView):
         responses={200: openapi.Response('List of jobs', openapi.Schema(
             type=openapi.TYPE_ARRAY,
             items=openapi.Schema(type=openapi.TYPE_OBJECT, properties={
+                'id': openapi.Schema(type=openapi.TYPE_INTEGER),
                 'title': openapi.Schema(type=openapi.TYPE_STRING),
                 'job_created': openapi.Schema(type=openapi.TYPE_STRING, format=openapi.FORMAT_DATE),
                 'job_expiry': openapi.Schema(type=openapi.TYPE_STRING, format=openapi.FORMAT_DATE),
@@ -143,7 +145,18 @@ class JobSearchView(APIView):
 
 
 class JobDetailView(APIView):
+    # Set default permission classes for all methods
     permission_classes = [IsAuthenticated]
+
+    def get_permissions(self):
+        """
+        Override this method to set custom permissions for each HTTP method.
+        """
+        if self.request.method == 'GET':
+            # Allow anyone to access the GET method
+            return [AllowAny()]
+        # Default to IsAuthenticated for all other methods
+        return [permission() for permission in self.permission_classes]
 
     @swagger_auto_schema(
         responses={

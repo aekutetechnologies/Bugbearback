@@ -31,6 +31,7 @@ class Command(BaseCommand):
             if expiry_seconds > 0:
                 # Create a dictionary with job details
                 job_data = {
+                    'id': job.id,
                     'title': job.title.lower(),
                     'job_created': job.job_posted.isoformat(),
                     'job_expiry': job.job_expiry.isoformat(),
