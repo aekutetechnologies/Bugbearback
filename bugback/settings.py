@@ -39,6 +39,7 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "drf_yasg", # Swagger
     "allauth",
     "allauth.account",
     "allauth.socialaccount",
@@ -51,6 +52,7 @@ INSTALLED_APPS = [
     "posts",
     "courses",
     "certificate",
+    "jobs"
 ]
 
 MIDDLEWARE = [
@@ -87,6 +89,14 @@ SOCIALACCOUNT_PROVIDERS = {
             "read:org",
         ],
     },
+}
+
+SWAGGER_SETTINGS = {
+    'SECURITY_DEFINITIONS': {
+        'Basic': {
+            'type': 'basic'
+        }
+    }
 }
 
 TEMPLATES = [
@@ -239,4 +249,16 @@ SIMPLE_JWT = {
     "TOKEN_TYPE_CLAIM": "token_type",
     "TOKEN_USER_CLASS": "rest_framework_simplejwt.models.TokenUser",
     "JTI_CLAIM": "jti",
+}
+
+
+CACHES = {
+    "default": {
+        "BACKEND": "django_redis.cache.RedisCache",
+        # "LOCATION": "redis://127.0.0.1:6379/1",
+        "LOCATION": "rediss://red-crarq5jtq21c73cca5ig:zVkWK7t2swVQQQIoZ9CzyscfuNOUPpTZ@singapore-redis.render.com:6379",
+        "OPTIONS": {
+            "CLIENT_CLASS": "django_redis.client.DefaultClient",
+        }
+    }
 }

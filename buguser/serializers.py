@@ -109,10 +109,17 @@ class UserLoginSerializer(serializers.ModelSerializer):
 
 class UserProfileSerializer(serializers.ModelSerializer):
     user_type_name = serializers.CharField(source="user_type.name", read_only=True)
+    profile_pic_url = serializers.SerializerMethodField()
 
     class Meta:
         model = User
         fields = ["id", "email", "is_active", "user_type_name", "profile_pic_url"]
+
+    def get_profile_pic_url(self, obj):
+        request = self.context.get('request')
+        if obj.profile_pic and request:
+            return request.build_absolute_uri(obj.profile_pic.url)
+        return None
 
 
 class BugUserDetailSerializer(serializers.ModelSerializer):

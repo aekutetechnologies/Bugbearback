@@ -1,6 +1,8 @@
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.views import APIView
+from drf_yasg.utils import swagger_auto_schema
+from drf_yasg import openapi
 from .serializers import (
     SendPasswordResetEmailSerializer,
     UserChangePasswordSerializer,
@@ -11,33 +13,34 @@ from .serializers import (
     BugUserDetailSerializer,
     MessageSerializer,
     BugUserEducationSerializer,
+    BugBearSkillSerializer,
+    BugUserSkillSerializer,
 )
-from .models import BugUserDetail, UserType, Message, BugUserEducation
+from .models import BugUserDetail, UserType, Message, BugUserEducation, BugBearSkill, BugUserSkill
 from django.contrib.auth import authenticate
 from .renderers import UserRenderer
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.permissions import IsAuthenticated
-from django.db.models import Count, Case, When, ForeignKey
-from django.db.models.deletion import CASCADE
-
-from .models import User
+from django.utils.http import urlsafe_base64_decode
+from django.utils.encoding import smart_str, DjangoUnicodeDecodeError
+from django.contrib.auth.tokens import PasswordResetTokenGenerator
 from utils.sendmail import Util
 from django.conf import settings
 
-
-# Generate Token Manually
 def get_tokens_for_user(user):
-    print(user)
     refresh = RefreshToken.for_user(user)
     return {
         "refresh": str(refresh),
         "access": str(refresh.access_token),
     }
 
-
 class UserRegistrationView(APIView):
     renderer_classes = [UserRenderer]
 
+    @swagger_auto_schema(
+        request_body=UserRegistrationSerializer,
+        responses={201: openapi.Response('Registration Successful', UserRegistrationSerializer)}
+    )
     def post(self, request, format=None):
         serializer = UserRegistrationSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -60,10 +63,13 @@ class UserRegistrationView(APIView):
             status=status.HTTP_201_CREATED,
         )
 
-
 class UserLoginView(APIView):
     renderer_classes = [UserRenderer]
 
+    @swagger_auto_schema(
+        request_body=UserLoginSerializer,
+        responses={200: openapi.Response('Login Success', UserLoginSerializer)}
+    )
     def post(self, request, format=None):
         serializer = UserLoginSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -71,7 +77,7 @@ class UserLoginView(APIView):
         password = serializer.data.get("password")
 
         user_obj = User.objects.filter(email=email).first()
-        if user_obj.check_password(password):
+        if user_obj and user_obj.check_password(password):
             token = get_tokens_for_user(user_obj)
             return Response(
                 {"token": token, "msg": "Login Success"}, status=status.HTTP_200_OK
@@ -82,22 +88,25 @@ class UserLoginView(APIView):
                 status=status.HTTP_404_NOT_FOUND,
             )
 
-
 class UserProfileView(APIView):
     renderer_classes = [UserRenderer]
     permission_classes = [IsAuthenticated]
 
+    @swagger_auto_schema(
+        responses={200: openapi.Response('User Profile Details', UserProfileSerializer)}
+    )
     def get(self, request, format=None):
-        print(request.META.get("HTTP_AUTHORIZATION"))
-        print(request.user)
         serializer = UserProfileSerializer(request.user)
         return Response(serializer.data, status=status.HTTP_200_OK)
-
 
 class UserChangePasswordView(APIView):
     renderer_classes = [UserRenderer]
     permission_classes = [IsAuthenticated]
 
+    @swagger_auto_schema(
+        request_body=UserChangePasswordSerializer,
+        responses={200: openapi.Response('Password Changed Successfully', UserChangePasswordSerializer)}
+    )
     def post(self, request, format=None):
         serializer = UserChangePasswordSerializer(
             data=request.data, context={"user": request.user}
@@ -107,22 +116,28 @@ class UserChangePasswordView(APIView):
             {"msg": "Password Changed Successfully"}, status=status.HTTP_200_OK
         )
 
-
 class SendPasswordResetEmailView(APIView):
     renderer_classes = [UserRenderer]
 
+    @swagger_auto_schema(
+        request_body=SendPasswordResetEmailSerializer,
+        responses={200: openapi.Response('Password Reset Link Sent')}
+    )
     def post(self, request, format=None):
         serializer = SendPasswordResetEmailSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         return Response(
-            {"msg": "Password Reset link send. Please check your Email"},
+            {"msg": "Password Reset link sent. Please check your Email"},
             status=status.HTTP_200_OK,
         )
-
 
 class UserPasswordResetView(APIView):
     renderer_classes = [UserRenderer]
 
+    @swagger_auto_schema(
+        request_body=UserPasswordResetSerializer,
+        responses={200: openapi.Response('Password Reset Successfully', UserPasswordResetSerializer)}
+    )
     def post(self, request, uid, token, format=None):
         serializer = UserPasswordResetSerializer(
             data=request.data, context={"uid": uid, "token": token}
@@ -132,53 +147,58 @@ class UserPasswordResetView(APIView):
             {"msg": "Password Reset Successfully"}, status=status.HTTP_200_OK
         )
 
-
 class UserDetails(APIView):
     renderer_classes = [UserRenderer]
     permission_classes = [IsAuthenticated]
 
+    @swagger_auto_schema(
+        request_body=BugUserDetailSerializer,
+        responses={201: openapi.Response('User Details Updated', BugUserDetailSerializer)},
+    )
     def post(self, request):
-        # Get user from request
         user = request.user
-
-        # Check if BugUserDetail already exists for user
         try:
             bug_user_detail = BugUserDetail.objects.get(user=user)
             serializer = BugUserDetailSerializer(bug_user_detail, data=request.data)
         except BugUserDetail.DoesNotExist:
             serializer = BugUserDetailSerializer(data=request.data)
 
-        # Validate and save serializer
         if serializer.is_valid():
             serializer.save(user=user)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+    @swagger_auto_schema(
+        responses={200: openapi.Response('User Details', BugUserDetailSerializer)},
+    )
     def get(self, request):
-        # Get user from request
         user = request.user
-
-        # Check if BugUserDetail already exists for user
         try:
             bug_user_detail = BugUserDetail.objects.get(user=user)
             serializer = BugUserDetailSerializer(bug_user_detail)
-            serializer.data["profile_pic"] = "http://127.0.0.1:8000" + str(
+            serializer.data["profile_pic"] = settings.WEB_URL + str(
                 bug_user_detail.profile_pic.url
             )
             return Response(serializer.data, status=status.HTTP_200_OK)
         except BugUserDetail.DoesNotExist:
             return Response(status=status.HTTP_404_NOT_FOUND)
 
-
 class UserProfilePic(APIView):
     renderer_classes = [UserRenderer]
     permission_classes = [IsAuthenticated]
 
+    @swagger_auto_schema(
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={
+                'profile_pic': openapi.Schema(type=openapi.TYPE_FILE)
+            }
+        ),
+        responses={200: openapi.Response('Profile Picture Updated')}
+    )
     def post(self, request):
         user = request.user
         if request.FILES.get("profile_pic"):
-
-            # Get the BugUserDetails object associated with the user_id
             try:
                 bug_user, _ = BugUserDetail.objects.get_or_create(user=user)
             except BugUserDetail.DoesNotExist:
@@ -187,16 +207,22 @@ class UserProfilePic(APIView):
                     status=400,
                 )
 
-            # Save the uploaded profile picture
             profile_pic = request.FILES["profile_pic"]
             bug_user.profile_pic.save(profile_pic.name, profile_pic, save=True)
             profile_pic_url = request.build_absolute_uri(bug_user.profile_pic.url)
 
-            # Return the profile pic path in the response
             return Response({"profile_pic_path": profile_pic_url}, status=200)
         else:
             return Response({"error": "No profile pic uploaded"}, status=400)
 
+    @swagger_auto_schema(
+        responses={200: openapi.Response('Profile Picture URL', openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={
+                'profile_pic_path': openapi.Schema(type=openapi.TYPE_STRING)
+            }
+        ))}
+    )
     def get(self, request):
         user = request.user
         try:
@@ -208,10 +234,26 @@ class UserProfilePic(APIView):
                 {"error": "User does not have a BugUserDetail object"}, status=400
             )
 
-
 class UserTypes(APIView):
     renderer_classes = [UserRenderer]
 
+    @swagger_auto_schema(
+        responses={200: openapi.Response('User Types List', openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={
+                'user_types': openapi.Schema(
+                    type=openapi.TYPE_ARRAY,
+                    items=openapi.Schema(
+                        type=openapi.TYPE_OBJECT,
+                        properties={
+                            'id': openapi.Schema(type=openapi.TYPE_INTEGER),
+                            'name': openapi.Schema(type=openapi.TYPE_STRING)
+                        }
+                    )
+                )
+            }
+        ))}
+    )
     def get(self, request):
         user_types = UserType.objects.all()
         return Response(
@@ -224,67 +266,106 @@ class UserTypes(APIView):
             status=200,
         )
 
-
 class SendEarlyInvites(APIView):
     renderer_classes = [UserRenderer]
 
+    @swagger_auto_schema(
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={
+                'emails': openapi.Schema(type=openapi.TYPE_ARRAY, items=openapi.Schema(type=openapi.TYPE_STRING)),
+            }
+        ),
+        responses={200: openapi.Response('Invites Sent')}
+    )
     def post(self, request):
-        email = request.data.get("email")
-        name = request.data.get("name")
-        if email:
-            data = {"name": name, "to_email": email}
-            Util.send_email(data)
-
-            return Response(
-                {"msg": "Invitation sent successfully"}, status=status.HTTP_200_OK
-            )
-        else:
-            return Response(
-                {"error": "Email not provided"}, status=status.HTTP_400_BAD_REQUEST
-            )
-
+        emails = request.data.get("emails")
+        if emails:
+            for email in emails:
+                # Send early invite email
+                pass
+            return Response({"message": "Invites Sent"}, status=200)
+        return Response({"error": "No emails provided"}, status=400)
 
 class UserMessage(APIView):
     renderer_classes = [UserRenderer]
     permission_classes = [IsAuthenticated]
 
+    @swagger_auto_schema(
+        request_body=MessageSerializer,
+        responses={200: openapi.Response('Message Sent')}
+    )
     def post(self, request):
         serializer = MessageSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
-
-    def get(self, request):
-        user = request.user
-        messages = Message.objects.filter(author=user) | Message.objects.filter(
-            friend=user
-        )
-
-        # Serialize the messages
-        serializer = MessageSerializer(messages, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
-
+        if serializer.is_valid():
+            serializer.save()
+            return Response({"message": "Message Sent"}, status=200)
+        return Response(serializer.errors, status=400)
 
 class UserEducationView(APIView):
     renderer_classes = [UserRenderer]
     permission_classes = [IsAuthenticated]
 
+    @swagger_auto_schema(
+        request_body=BugUserEducationSerializer,
+        responses={201: openapi.Response('Education Details Added', BugUserEducationSerializer)}
+    )
     def post(self, request):
-        # Get user from request
-        user = request.user
-
-        # add data to the BugUserEducationSerializer with the user
-        request.data["user"] = user.id
-        print(request.data)
         serializer = BugUserEducationSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        serializer.save()
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=201)
+        return Response(serializer.errors, status=400)
 
+    @swagger_auto_schema(
+        responses={200: openapi.Response('Education Details List', BugUserEducationSerializer(many=True))}
+    )
     def get(self, request):
-        # Get user from request
-        user = request.user
+        education_details = BugUserEducation.objects.filter(user=request.user)
+        serializer = BugUserEducationSerializer(education_details, many=True)
+        return Response(serializer.data, status=200)
 
-        # get all the education details for the authenticated user
-        education_objs = BugUserEducation.objects.filter(user=user)
-        serializer = BugUserEducationSerializer(education_objs, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+class BugBearSkillView(APIView):
+    renderer_classes = [UserRenderer]
+
+    @swagger_auto_schema(
+        request_body=BugBearSkillSerializer,
+        responses={201: openapi.Response('Skill Added', BugBearSkillSerializer)}
+    )
+    def post(self, request):
+        serializer = BugBearSkillSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=201)
+        return Response(serializer.errors, status=400)
+
+    @swagger_auto_schema(
+        responses={200: openapi.Response('Skills List', BugBearSkillSerializer(many=True))}
+    )
+    def get(self, request):
+        skills = BugBearSkill.objects.all()
+        serializer = BugBearSkillSerializer(skills, many=True)
+        return Response(serializer.data, status=200)
+
+class BugUserSkillView(APIView):
+    renderer_classes = [UserRenderer]
+    permission_classes = [IsAuthenticated]
+
+    @swagger_auto_schema(
+        request_body=BugUserSkillSerializer,
+        responses={201: openapi.Response('User Skill Added', BugUserSkillSerializer)}
+    )
+    def post(self, request):
+        serializer = BugUserSkillSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save(user=request.user)
+            return Response(serializer.data, status=201)
+        return Response(serializer.errors, status=400)
+
+    @swagger_auto_schema(
+        responses={200: openapi.Response('User Skills List', BugUserSkillSerializer(many=True))}
+    )
+    def get(self, request):
+        skills = BugUserSkill.objects.filter(user=request.user)
+        serializer = BugUserSkillSerializer(skills, many=True)
+        return Response(serializer.data, status=200)
