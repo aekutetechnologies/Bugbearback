@@ -19,6 +19,7 @@ class BugJob(models.Model):
         ('15+ Years', '15+ Years'),
     ]
 
+    id = models.AutoField(primary_key=True)
     title = models.CharField(max_length=255)  # e.g., Senior UX Designer
     company = models.ForeignKey(BugOrganization, on_delete=models.CASCADE, related_name='jobs')  # Company relation
     job_description = models.TextField()  # BugJob description field
