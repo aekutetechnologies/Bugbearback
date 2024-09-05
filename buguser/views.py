@@ -22,6 +22,7 @@ from .models import (
     BugUserEducation,
     BugBearSkill,
     BugUserSkill,
+    User
 )
 from .renderers import UserRenderer
 from rest_framework_simplejwt.tokens import RefreshToken
