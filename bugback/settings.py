@@ -39,7 +39,7 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
-    "drf_yasg", # Swagger
+    "drf_yasg",  # Swagger
     "allauth",
     "allauth.account",
     "allauth.socialaccount",
@@ -52,7 +52,7 @@ INSTALLED_APPS = [
     "posts",
     "courses",
     "certificate",
-    "jobs"
+    "jobs",
 ]
 
 MIDDLEWARE = [
@@ -91,13 +91,7 @@ SOCIALACCOUNT_PROVIDERS = {
     },
 }
 
-SWAGGER_SETTINGS = {
-    'SECURITY_DEFINITIONS': {
-        'Basic': {
-            'type': 'basic'
-        }
-    }
-}
+SWAGGER_SETTINGS = {"SECURITY_DEFINITIONS": {"Basic": {"type": "basic"}}}
 
 TEMPLATES = [
     {
@@ -260,6 +254,6 @@ CACHES = {
         "LOCATION": "rediss://red-crarq5jtq21c73cca5ig:zVkWK7t2swVQQQIoZ9CzyscfuNOUPpTZ@singapore-redis.render.com:6379",
         "OPTIONS": {
             "CLIENT_CLASS": "django_redis.client.DefaultClient",
-        }
+        },
     }
 }

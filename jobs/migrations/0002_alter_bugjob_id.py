@@ -6,13 +6,13 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('jobs', '0001_initial'),
+        ("jobs", "0001_initial"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='bugjob',
-            name='id',
+            model_name="bugjob",
+            name="id",
             field=models.AutoField(primary_key=True, serialize=False),
         ),
     ]

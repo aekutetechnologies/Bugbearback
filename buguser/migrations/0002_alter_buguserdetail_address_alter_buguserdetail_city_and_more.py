@@ -6,43 +6,43 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('buguser', '0001_initial'),
+        ("buguser", "0001_initial"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='buguserdetail',
-            name='address',
+            model_name="buguserdetail",
+            name="address",
             field=models.TextField(blank=True, null=True),
         ),
         migrations.AlterField(
-            model_name='buguserdetail',
-            name='city',
+            model_name="buguserdetail",
+            name="city",
             field=models.CharField(blank=True, max_length=50, null=True),
         ),
         migrations.AlterField(
-            model_name='buguserdetail',
-            name='country',
+            model_name="buguserdetail",
+            name="country",
             field=models.CharField(blank=True, max_length=50, null=True),
         ),
         migrations.AlterField(
-            model_name='buguserdetail',
-            name='dob',
+            model_name="buguserdetail",
+            name="dob",
             field=models.DateField(blank=True, null=True),
         ),
         migrations.AlterField(
-            model_name='buguserdetail',
-            name='first_name',
+            model_name="buguserdetail",
+            name="first_name",
             field=models.CharField(blank=True, max_length=50, null=True),
         ),
         migrations.AlterField(
-            model_name='buguserdetail',
-            name='last_name',
+            model_name="buguserdetail",
+            name="last_name",
             field=models.CharField(blank=True, max_length=50, null=True),
         ),
         migrations.AlterField(
-            model_name='buguserdetail',
-            name='phone',
+            model_name="buguserdetail",
+            name="phone",
             field=models.CharField(blank=True, max_length=15, null=True),
         ),
     ]

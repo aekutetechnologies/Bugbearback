@@ -1,10 +1,8 @@
-from django.shortcuts import render
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.views import APIView
 from .serializers import GigSerializer, CategorySerializer
 from .models import Gig, Category
-from django.contrib.auth import authenticate
 from buguser.renderers import UserRenderer
 from rest_framework.permissions import IsAuthenticated
 

@@ -1,21 +1,17 @@
-from django.shortcuts import render
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.views import APIView
 from .serializers import (
-    CourseModuleSerializer,
     CourseSerializer,
-    CourseReviewSerializer,
     CourseOrderSerializer,
     CategorySerializer,
     CourseCreateSerializer,
 )
-from .models import Course, Category, CourseModule, CourseReview, CourseOrder
+from .models import Course, Category, CourseOrder
 from buguser.renderers import UserRenderer
 from rest_framework.permissions import IsAuthenticated
-from rest_framework.exceptions import PermissionDenied, NotFound, ValidationError
+from rest_framework.exceptions import PermissionDenied
 from django.shortcuts import get_object_or_404
-from django.core.paginator import Paginator
 
 
 class CourseListCreateView(APIView):

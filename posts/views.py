@@ -1,6 +1,4 @@
-from rest_framework import serializers
 from drf_yasg.utils import swagger_auto_schema
-from drf_yasg import openapi
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -9,15 +7,15 @@ from django.shortcuts import get_object_or_404
 from .serializers import (
     PostSerializer,
     PostCategorySerializer,
-    LikePostSerializer,
     CommentSerializer,
 )
 from .models import Post, PostCategory, Comment
 from buguser.renderers import UserRenderer
 from django.core.paginator import Paginator
-from rest_framework.exceptions import PermissionDenied, NotFound, ValidationError
+from rest_framework.exceptions import PermissionDenied, NotFound
 
 # Create your views here.
+
 
 class PostListCreateView(APIView):
     renderer_classes = [UserRenderer]
@@ -25,7 +23,7 @@ class PostListCreateView(APIView):
 
     @swagger_auto_schema(
         operation_summary="Retrieve all posts of the logged-in user",
-        responses={200: PostSerializer(many=True)}
+        responses={200: PostSerializer(many=True)},
     )
     def get(self, request, format=None):
         posts = Post.objects.filter(user=request.user)
@@ -35,7 +33,7 @@ class PostListCreateView(APIView):
     @swagger_auto_schema(
         operation_summary="Create a new post",
         request_body=PostSerializer,
-        responses={201: PostSerializer}
+        responses={201: PostSerializer},
     )
     def post(self, request, format=None):
         serializer = PostSerializer(data=request.data, context={"request": request})
@@ -57,7 +55,7 @@ class PostDetailView(APIView):
 
     @swagger_auto_schema(
         operation_summary="Retrieve a specific post by ID",
-        responses={200: PostSerializer, 404: "Not Found"}
+        responses={200: PostSerializer, 404: "Not Found"},
     )
     def get(self, request, pk, format=None):
         post = self.get_object(pk)
@@ -67,7 +65,7 @@ class PostDetailView(APIView):
     @swagger_auto_schema(
         operation_summary="Update a specific post",
         request_body=PostSerializer,
-        responses={200: PostSerializer, 400: "Bad Request", 403: "Permission Denied"}
+        responses={200: PostSerializer, 400: "Bad Request", 403: "Permission Denied"},
     )
     def put(self, request, pk, format=None):
         post = self.get_object(pk)
@@ -79,7 +77,7 @@ class PostDetailView(APIView):
 
     @swagger_auto_schema(
         operation_summary="Delete a specific post by ID",
-        responses={204: "No Content", 404: "Not Found"}
+        responses={204: "No Content", 404: "Not Found"},
     )
     def delete(self, request, pk, format=None):
         post = self.get_object(pk)
@@ -93,7 +91,7 @@ class CategoryListCreateView(APIView):
 
     @swagger_auto_schema(
         operation_summary="Retrieve all post categories",
-        responses={200: PostCategorySerializer(many=True)}
+        responses={200: PostCategorySerializer(many=True)},
     )
     def get(self, request, format=None):
         categories = PostCategory.objects.all()
@@ -103,7 +101,7 @@ class CategoryListCreateView(APIView):
     @swagger_auto_schema(
         operation_summary="Create a new post category",
         request_body=PostCategorySerializer,
-        responses={201: PostCategorySerializer, 400: "Bad Request"}
+        responses={201: PostCategorySerializer, 400: "Bad Request"},
     )
     def post(self, request, format=None):
         serializer = PostCategorySerializer(data=request.data)
@@ -119,7 +117,7 @@ class ProfilePostView(APIView):
 
     @swagger_auto_schema(
         operation_summary="Retrieve posts for the logged-in user profile",
-        responses={200: PostSerializer(many=True)}
+        responses={200: PostSerializer(many=True)},
     )
     def get(self, request, format=None):
         posts = Post.objects.filter(user=request.user)
@@ -129,7 +127,7 @@ class ProfilePostView(APIView):
     @swagger_auto_schema(
         operation_summary="Create a post for the logged-in user",
         request_body=PostSerializer,
-        responses={201: PostSerializer, 400: "Bad Request"}
+        responses={201: PostSerializer, 400: "Bad Request"},
     )
     def post(self, request, format=None):
         user = request.user
@@ -147,7 +145,7 @@ class LikePostView(APIView):
 
     @swagger_auto_schema(
         operation_summary="Like or unlike a post",
-        responses={200: "Post liked/unliked", 404: "Not Found"}
+        responses={200: "Post liked/unliked", 404: "Not Found"},
     )
     def post(self, request, post_id, format=None):
         try:
@@ -166,7 +164,9 @@ class LikePostView(APIView):
                 status=status.HTTP_200_OK,
             )
         except NotFound:
-            return Response({"error": "Post not found."}, status=status.HTTP_404_NOT_FOUND)
+            return Response(
+                {"error": "Post not found."}, status=status.HTTP_404_NOT_FOUND
+            )
 
 
 class CommentListView(APIView):
@@ -175,7 +175,7 @@ class CommentListView(APIView):
 
     @swagger_auto_schema(
         operation_summary="Retrieve comments for a specific post",
-        responses={200: CommentSerializer(many=True), 404: "Not Found"}
+        responses={200: CommentSerializer(many=True), 404: "Not Found"},
     )
     def get(self, request, post_id, format=None):
         comments = Comment.objects.filter(post=post_id).order_by("-date_added")
@@ -190,7 +190,7 @@ class CommentListView(APIView):
     @swagger_auto_schema(
         operation_summary="Create a comment for a specific post",
         request_body=CommentSerializer,
-        responses={201: CommentSerializer, 400: "Bad Request", 404: "Not Found"}
+        responses={201: CommentSerializer, 400: "Bad Request", 404: "Not Found"},
     )
     def post(self, request, post_id, format=None):
         try:
@@ -204,7 +204,9 @@ class CommentListView(APIView):
                 serializer.save()
                 return Response(serializer.data, status=status.HTTP_201_CREATED)
         except NotFound:
-            return Response({"error": "Post not found."}, status=status.HTTP_404_NOT_FOUND)
+            return Response(
+                {"error": "Post not found."}, status=status.HTTP_404_NOT_FOUND
+            )
 
 
 class CommentUpdateView(APIView):
@@ -214,7 +216,7 @@ class CommentUpdateView(APIView):
     @swagger_auto_schema(
         operation_summary="Update a specific comment",
         request_body=CommentSerializer,
-        responses={200: CommentSerializer, 404: "Not Found"}
+        responses={200: CommentSerializer, 404: "Not Found"},
     )
     def put(self, request, comment_id, format=None):
         comment = get_object_or_404(Comment, id=comment_id)
@@ -231,7 +233,7 @@ class CommentLikeView(APIView):
 
     @swagger_auto_schema(
         operation_summary="Like or unlike a comment",
-        responses={200: "Comment liked/unliked", 404: "Not Found"}
+        responses={200: "Comment liked/unliked", 404: "Not Found"},
     )
     def post(self, request, comment_id, format=None):
         comment = get_object_or_404(Comment, id=comment_id)

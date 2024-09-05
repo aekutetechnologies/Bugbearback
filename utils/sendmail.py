@@ -1,4 +1,3 @@
-from django.core.mail import send_mail, EmailMessage
 import os
 import certifi
 

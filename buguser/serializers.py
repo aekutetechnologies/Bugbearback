@@ -11,7 +11,6 @@ from .models import (
 from django.utils.encoding import smart_str, force_bytes, DjangoUnicodeDecodeError
 from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
 from django.contrib.auth.tokens import PasswordResetTokenGenerator
-from .utils import Util
 
 
 class Base64ImageField(serializers.ImageField):
@@ -116,7 +115,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
         fields = ["id", "email", "is_active", "user_type_name", "profile_pic_url"]
 
     def get_profile_pic_url(self, obj):
-        request = self.context.get('request')
+        request = self.context.get("request")
         if obj.profile_pic and request:
             return request.build_absolute_uri(obj.profile_pic.url)
         return None
@@ -238,7 +237,7 @@ class UserPasswordResetSerializer(serializers.Serializer):
             user.set_password(password)
             user.save()
             return attrs
-        except DjangoUnicodeDecodeError as identifier:
+        except DjangoUnicodeDecodeError:
             PasswordResetTokenGenerator().check_token(user, token)
             raise serializers.ValidationError("Token is not Valid or Expired")
 

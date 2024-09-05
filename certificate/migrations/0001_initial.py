@@ -15,17 +15,30 @@ class Migration(migrations.Migration):
 
     operations = [
         migrations.CreateModel(
-            name='Certificate',
+            name="Certificate",
             fields=[
-                ('id', models.AutoField(primary_key=True, serialize=False)),
-                ('title', models.CharField(max_length=255)),
-                ('description', models.TextField()),
-                ('image', models.ImageField(null=True, upload_to='certificates')),
-                ('date_created', models.DateTimeField(auto_now_add=True)),
-                ('valid_until', models.CharField(max_length=255)),
-                ('certificate_create_date', models.CharField(max_length=255)),
-                ('likes', models.ManyToManyField(blank=True, related_name='certificate_likes', to=settings.AUTH_USER_MODEL)),
-                ('user', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to=settings.AUTH_USER_MODEL)),
+                ("id", models.AutoField(primary_key=True, serialize=False)),
+                ("title", models.CharField(max_length=255)),
+                ("description", models.TextField()),
+                ("image", models.ImageField(null=True, upload_to="certificates")),
+                ("date_created", models.DateTimeField(auto_now_add=True)),
+                ("valid_until", models.CharField(max_length=255)),
+                ("certificate_create_date", models.CharField(max_length=255)),
+                (
+                    "likes",
+                    models.ManyToManyField(
+                        blank=True,
+                        related_name="certificate_likes",
+                        to=settings.AUTH_USER_MODEL,
+                    ),
+                ),
+                (
+                    "user",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        to=settings.AUTH_USER_MODEL,
+                    ),
+                ),
             ],
         ),
     ]
