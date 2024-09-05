@@ -7,6 +7,7 @@ from django.utils import timezone
 from .models import BugJob
 from .serializers import JobSerializer
 import json
+from datetime import datetime, date
 
 
 from drf_yasg import openapi
@@ -192,6 +193,7 @@ class JobDetailView(APIView):
             ),
         }
     )
+
     def get(self, request, pk, format=None):
         job_key = f"job:{pk}"
         job_data = cache.get(job_key)
@@ -211,7 +213,14 @@ class JobDetailView(APIView):
 
         # Calculate the expiry time in seconds
         current_time = timezone.now()
-        expiry_seconds = int((job.job_expiry - current_time).total_seconds())
+
+        # Convert job_expiry to datetime if it's a date
+        if isinstance(job.job_expiry, date) and not isinstance(job.job_expiry, datetime):
+            job_expiry_datetime = datetime.combine(job.job_expiry, datetime.min.time(), tzinfo=current_time.tzinfo)
+        else:
+            job_expiry_datetime = job.job_expiry
+
+        expiry_seconds = int((job_expiry_datetime - current_time).total_seconds())
 
         if expiry_seconds > 0:
             # Save in Redis with the new expiry time
@@ -220,6 +229,7 @@ class JobDetailView(APIView):
             )
 
         return Response(serializer.data, status=status.HTTP_200_OK)
+
 
     @swagger_auto_schema(
         request_body=JobSerializer,

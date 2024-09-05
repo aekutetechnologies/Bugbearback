@@ -7,6 +7,8 @@ from .models import (
     BugUserEducation,
     BugBearSkill,
     BugUserSkill,
+    BugOrganization,
+    BugOrganizationDetail,
 )
 from django.utils.encoding import smart_str, force_bytes, DjangoUnicodeDecodeError
 from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
@@ -309,3 +311,17 @@ class BugUserSkillSerializer(serializers.ModelSerializer):
 
         # make id read_only
         extra_kwargs = {"id": {"read_only": True}}
+
+
+class BugOrganizationDetailSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = BugOrganizationDetail
+        fields = ['org_country', 'org_city', 'org_address', 'org_phone', 'org_profile_pic', 'org_website', 'org_description']
+
+
+class BugOrganizationSerializer(serializers.ModelSerializer):
+    organization_details = BugOrganizationDetailSerializer(source='bugorganizationdetail', read_only=True)
+
+    class Meta:
+        model = BugOrganization
+        fields = ['id', 'org_name', 'org_email', 'organization_details']
