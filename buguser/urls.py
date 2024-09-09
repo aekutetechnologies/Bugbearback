@@ -12,6 +12,8 @@ from .views import (
     SendEarlyInvites,
     UserMessage,
     UserEducationView,
+    BugBearSkillView,
+
 )
 
 urlpatterns = [
@@ -36,4 +38,5 @@ urlpatterns = [
     path("send-invite/", SendEarlyInvites.as_view(), name="send-invite"),
     path("message/", UserMessage.as_view(), name="message"),
     path("education/", UserEducationView.as_view(), name="education"),
+    path("skill/", BugBearSkillView.as_view(), name="skill"),
 ]

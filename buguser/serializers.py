@@ -307,7 +307,7 @@ class BugBearSkillSerializer(serializers.ModelSerializer):
 class BugUserSkillSerializer(serializers.ModelSerializer):
     class Meta:
         model = BugUserSkill
-        fields = ["id", "skill", "level", "experience"]
+        fields = ["id", "user", "skill"]
 
         # make id read_only
         extra_kwargs = {"id": {"read_only": True}}

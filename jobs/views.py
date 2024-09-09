@@ -93,8 +93,20 @@ class JobSearchView(APIView):
                     description="Number of items per page",
                     default=10,
                 ),
+                "category": openapi.Schema(
+                    type=openapi.TYPE_ARRAY, items=openapi.Schema(type=openapi.TYPE_STRING), description="List of categories to filter"
+                ),
+                "salaryRange": openapi.Schema(
+                    type=openapi.TYPE_ARRAY, items=openapi.Schema(type=openapi.TYPE_STRING), description="List of salary ranges"
+                ),
+                "experienceLevel": openapi.Schema(
+                    type=openapi.TYPE_ARRAY, items=openapi.Schema(type=openapi.TYPE_STRING), description="List of experience levels"
+                ),
+                "jobType": openapi.Schema(
+                    type=openapi.TYPE_ARRAY, items=openapi.Schema(type=openapi.TYPE_STRING), description="List of job types"
+                ),
             },
-            required=["title"],
+            required=["page", "page_size"],
         ),
         responses={
             200: openapi.Response(
@@ -127,44 +139,73 @@ class JobSearchView(APIView):
         },
     )
     def post(self, request, format=None):
+        # Extracting filter parameters from the request
         search_query = request.data.get("title", "").lower()
+        categories = request.data.get("category", [])
+        salary_ranges = request.data.get("salaryRange", [])
+        experience_levels = request.data.get("experienceLevel", [])
+        job_types = request.data.get("jobType", [])
 
-        # Get pagination parameters from the request body
+        # Get pagination parameters
         page = request.data.get("page", 1)
         page_size = request.data.get("page_size", 10)
 
-        # Get the underlying Redis client
+        # Fetch jobs from Redis or database (assuming Redis is used)
         redis_client = cache.client.get_client()
-
-        # Fetch all job keys using the pattern "job:*"
         job_keys = redis_client.keys("job:*")
 
-        # Use pipeline to batch operations
+        # Use a pipeline to batch Redis calls
         pipeline = redis_client.pipeline()
         for job_key in job_keys:
             pipeline.get(job_key)
         job_data_list = pipeline.execute()
 
-        # Filter and sort job data by job_created in descending order
+        # Initialize matching jobs
         matching_jobs = []
+
+        # Filter through the jobs
         for job_data in job_data_list:
             job_data = json.loads(job_data.decode("utf-8"))
-            job_title = job_data.get("title", "")
+            job_title = job_data.get("title", "").lower()
+            job_category = job_data.get("category", "").lower()
+            job_salary_min = float(job_data.get("salary_min", 0))
+            job_salary_max = float(job_data.get("salary_max", 0))
+            job_experience = float(job_data.get("experience", 0))
+            job_type_data = job_data.get("job_type", "").lower()
 
-            if search_query in job_title:
-                # Append the full job data
+            # Salary filtering logic
+            valid_salary = False
+            for salary_range in salary_ranges:
+                try:
+                    min_salary, max_salary = map(float, salary_range.split("-"))
+                    if min_salary <= job_salary_min <= max_salary:
+                        valid_salary = True
+                        break
+                except ValueError:
+                    valid_salary = False  # Invalid salary range format
+
+            # Check filters
+            if (
+                (not search_query or search_query in job_title)
+                and (not categories or job_category in [cat.lower() for cat in categories])
+                and (valid_salary or not salary_ranges)  # If no salary range provided, skip filtering
+                and (not experience_levels or any(exp_level.lower() in job_data.get("experience", "").lower() for exp_level in experience_levels))
+                and (not job_types or job_type_data in [jt.lower() for jt in job_types])
+            ):
                 matching_jobs.append(job_data)
 
-        # Sort the jobs by job_created in descending order
+        # Sort jobs by job_created
         matching_jobs.sort(key=lambda x: x.get("job_created"), reverse=True)
 
         # Apply pagination
         paginator = JobPagination()
-        paginator.page_size = page_size  # Set the page size
+        paginator.page_size = page_size
         paginated_jobs = paginator.paginate_queryset(matching_jobs, request)
 
         # Return the paginated response
         return paginator.get_paginated_response(paginated_jobs)
+
+
 
 
 class JobDetailView(APIView):

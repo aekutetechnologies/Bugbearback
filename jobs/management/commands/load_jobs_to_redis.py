@@ -30,15 +30,17 @@ class Command(BaseCommand):
             expiry_seconds = int((job_expiry_datetime - current_time).total_seconds())
 
             if expiry_seconds > 0:
-                # Create a dictionary with job details
+                # Create a dictionary with job details, including all fields required for filtering
                 job_data = {
                     "id": job.id,
                     "title": job.title.lower(),
+                    "category": job.category.name.lower() if job.category else "",
                     "job_created": job.job_posted.isoformat(),
                     "job_expiry": job.job_expiry.isoformat(),
                     "salary_min": str(job.salary_min),
                     "salary_max": str(job.salary_max),
-                    "job_type": job.job_type,
+                    "experience": str(job.experience),  # Experience level
+                    "job_type": job.job_type.lower(),  # Store job type in lowercase for consistent filtering
                     "featured": job.featured,
                 }
 

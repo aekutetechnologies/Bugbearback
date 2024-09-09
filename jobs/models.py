@@ -3,6 +3,13 @@ from buguser.models import BugOrganization
 
 # Create your models here.
 
+class BugJobCategory(models.Model):
+    id = models.AutoField(primary_key=True)
+    name = models.CharField(max_length=255)  # e.g., Engineering
+
+    def __str__(self):
+        return self.name
+
 
 class BugJob(models.Model):
     JOB_TYPE_CHOICES = [
@@ -12,20 +19,15 @@ class BugJob(models.Model):
         ("Internship", "Internship"),
     ]
 
-    EXPERIENCE_LEVEL_CHOICES = [
-        ("0-2 Years", "0-2 Years"),
-        ("3-5 Years", "3-5 Years"),
-        ("6-9 Years", "6-9 Years"),
-        ("10-15 Years", "10-15 Years"),
-        ("15+ Years", "15+ Years"),
-    ]
-
     id = models.AutoField(primary_key=True)
     title = models.CharField(max_length=255)  # e.g., Senior UX Designer
     company = models.ForeignKey(
         BugOrganization, on_delete=models.CASCADE, related_name="jobs"
     )  # Company relation
     job_description = models.TextField()  # BugJob description field
+    category = models.ForeignKey(
+        BugJobCategory, on_delete=models.CASCADE, related_name="jobs", null=True
+    )  # Job category relation
     responsibilities = models.TextField()  # Responsibilities section
     job_posted = models.DateField()  # BugJob posted date
     job_expiry = models.DateField()  # BugJob expiry date
@@ -35,7 +37,7 @@ class BugJob(models.Model):
     job_type = models.CharField(
         max_length=50, choices=JOB_TYPE_CHOICES, default="Full Time"
     )
-    experience = models.CharField(max_length=50, choices=EXPERIENCE_LEVEL_CHOICES)
+    experience = models.FloatField(default=0.0)
     education = models.CharField(
         max_length=255, default="Graduation"
     )  # e.g., Graduation

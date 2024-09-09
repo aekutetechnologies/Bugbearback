@@ -24,10 +24,13 @@ from .models import (
     BugUserSkill,
     User
 )
+import os
 from .renderers import UserRenderer
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.permissions import IsAuthenticated
 from django.conf import settings
+from django.forms.models import model_to_dict
+from django.core.files import File
 
 
 def get_tokens_for_user(user):
@@ -48,11 +51,16 @@ class UserRegistrationView(APIView):
         },
     )
     def post(self, request, format=None):
+        print("here")
+        print(request.data)
         serializer = UserRegistrationSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
 
         if user:
+
+            default_profile_pic_path = os.path.join(settings.BASE_DIR, "static") + "/img/default.jpeg"
+
             user_profile, _ = BugUserDetail.objects.get_or_create(
                 user=user,
                 first_name="",
@@ -63,6 +71,8 @@ class UserRegistrationView(APIView):
                 phone="",
                 profile_pic="",
             )
+            with open(default_profile_pic_path, 'rb') as f:
+                user_profile.profile_pic.save('default.jpg', File(f), save=True)
         token = get_tokens_for_user(user)
         return Response(
             {"token": token, "msg": "Registration Successful"},
@@ -84,10 +94,11 @@ class UserLoginView(APIView):
         password = serializer.data.get("password")
 
         user_obj = User.objects.filter(email=email).first()
+        user_details = BugUserDetail.objects.filter(user=user_obj).first()
         if user_obj and user_obj.check_password(password):
             token = get_tokens_for_user(user_obj)
             return Response(
-                {"token": token, "msg": "Login Success"}, status=status.HTTP_200_OK
+                {"token": token, "msg": "Login Success", "user_type": user_obj.user_type.id}, status=status.HTTP_200_OK
             )
         else:
             return Response(

@@ -122,9 +122,9 @@ class BugUserDetail(models.Model):
 
 class BugBearSkill(models.Model):
     id = models.AutoField(primary_key=True)
-    skill_name = models.CharField(max_length=50)
-    skill_description = models.TextField()
-    skill_logo = models.ImageField(upload_to="skill_logos/")
+    name = models.CharField(max_length=50)
+    description = models.TextField()
+    logo = models.ImageField(upload_to="skill_logos/")
 
     def __str__(self):
         return self.skill_name
@@ -134,16 +134,6 @@ class BugUserSkill(models.Model):
     id = models.AutoField(primary_key=True)
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     skill = models.ForeignKey(BugBearSkill, on_delete=models.CASCADE)
-    skill_level = models.CharField(
-        max_length=20,
-        choices=(
-            ("Beginner", "Beginner"),
-            ("Intermediate", "Intermediate"),
-            ("Expert", "Expert"),
-        ),
-        default="Beginner",
-        blank=False,
-    )
 
     def __str__(self):
         return self.user.email

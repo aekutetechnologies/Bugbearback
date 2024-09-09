@@ -1,5 +1,5 @@
 from django.core.management.base import BaseCommand
-from jobs.models import BugJob
+from jobs.models import BugJob, BugJobCategory
 from buguser.models import BugOrganization
 from django.utils import timezone
 import random
@@ -10,6 +10,7 @@ class Command(BaseCommand):
     help = "Populate the database with a large number of test data using bulk_create"
 
     def handle(self, *args, **kwargs):
+        # List of company names
         # List of company names
         company_names = [
             "Nokia",
@@ -157,6 +158,27 @@ class Command(BaseCommand):
         # Get all created organizations
         all_organizations = BugOrganization.objects.all()
 
+        # Create categories
+        categories = [
+            BugJobCategory(name="DevSecOps"),
+            BugJobCategory(name="Cloud Security"),
+            BugJobCategory(name="Security Auditing"),
+            BugJobCategory(name="Web Application Security"),
+            BugJobCategory(name="Vulerability Management"),
+            BugJobCategory(name="VPAT"),
+            BugJobCategory(name="Network Security"),
+            BugJobCategory(name="Physical Red Teaming"),
+            BugJobCategory(name="Physical Security"),
+            BugJobCategory(name="WebProxy"),
+            BugJobCategory(name="EDR/XDR"),
+            BugJobCategory(name="SOCaaS"),
+            BugJobCategory(name="AD Security/AD Pentesting"),
+        ]
+        BugJobCategory.objects.bulk_create(categories)
+
+        # Get all created categories
+        all_categories = BugJobCategory.objects.all()
+
         # Define the start and end dates of the current year
         today = timezone.now().date()
         start_of_year = today.replace(month=1, day=1)
@@ -287,20 +309,16 @@ class Command(BaseCommand):
             BugJob(
                 title=random.choice(job_titles),
                 company=random.choice(all_organizations),
+                category=random.choice(all_categories),
                 job_description="Sample job description goes here.",
                 responsibilities="Sample responsibilities go here.",
                 job_posted=random_date(start_of_year, end_of_year),
-                job_expiry=random_date(start_of_year, end_of_year)
-                + timedelta(days=random.randint(30, 180)),
-                salary_min=random.randint(30000, 70000),
-                salary_max=random.randint(70000, 120000),
+                job_expiry=random_date(start_of_year, end_of_year) + timedelta(days=random.randint(30, 180)),
+                salary_min=random.uniform(30000, 70000),
+                salary_max=random.uniform(70000, 120000),
                 location="Sample Location",
-                job_type=random.choice(
-                    ["Full Time", "Part Time", "Contract", "Internship"]
-                ),
-                experience=random.choice(
-                    ["0-2 Years", "3-5 Years", "6-9 Years", "10-15 Years", "15+ Years"]
-                ),
+                job_type=random.choice(["Full Time", "Part Time", "Contract", "Internship"]),
+                experience=random.uniform(0, 15),  # Experience in years as a float
                 education=random.choice(["Graduation", "Master's Degree", "PhD"]),
                 featured=random.choice([True, False]),
             )
@@ -310,6 +328,4 @@ class Command(BaseCommand):
         # Bulk create jobs
         BugJob.objects.bulk_create(jobs)
 
-        self.stdout.write(
-            self.style.SUCCESS("Successfully populated the database with test data.")
-        )
+        self.stdout.write(self.style.SUCCESS("Successfully populated the database with test data."))

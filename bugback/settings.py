@@ -30,6 +30,7 @@ DEBUG = True
 ALLOWED_HOSTS = ["*", "bugbearback.onrender.com"]
 
 WEB_URL = "https://bugbearback.onrender.com"
+WEB_URL = "http://127.0.0.1:8000"
 # Application definition
 
 INSTALLED_APPS = [
@@ -201,15 +202,15 @@ USE_TZ = True
 MEDIA_URL = "/media/"
 MEDIA_ROOT = os.path.join(BASE_DIR, "media")
 
-# STATIC_URL = "/static/"
-# STATIC_ROOT = os.path.join(BASE_DIR, "static")
+STATIC_URL = "/static/"
+STATIC_ROOT = os.path.join(BASE_DIR, "static")
 
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.0/howto/static-files/
 
 # This setting informs Django of the URI path from which your static files will be served to users
 # Here, they well be accessible at your-domain.onrender.com/static/... or yourcustomdomain.com/static/...
-STATIC_URL = "/static/"
+# STATIC_URL = "/static/"
 # This production code might break development mode, so we check whether we're in DEBUG mode
 if (
     not DEBUG
@@ -251,8 +252,7 @@ SIMPLE_JWT = {
 CACHES = {
     "default": {
         "BACKEND": "django_redis.cache.RedisCache",
-        # "LOCATION": "redis://127.0.0.1:6379/1",
-        "LOCATION": "redis://red-crarq5jtq21c73cca5ig:6379",
+        "LOCATION": "redis://127.0.0.1:6379/1",
         # "LOCATION": "rediss://red-crarq5jtq21c73cca5ig:zVkWK7t2swVQQQIoZ9CzyscfuNOUPpTZ@singapore-redis.render.com:6379",
         "OPTIONS": {
             "CLIENT_CLASS": "django_redis.client.DefaultClient",
