@@ -1,5 +1,5 @@
 from django.db import models
-from buguser.models import BugOrganization
+from buguser.models import  User
 
 # Create your models here.
 
@@ -22,13 +22,14 @@ class BugJob(models.Model):
     id = models.AutoField(primary_key=True)
     title = models.CharField(max_length=255)  # e.g., Senior UX Designer
     company = models.ForeignKey(
-        BugOrganization, on_delete=models.CASCADE, related_name="jobs"
+        User, on_delete=models.CASCADE, related_name="jobs"
     )  # Company relation
-    job_description = models.TextField()  # BugJob description field
     category = models.ForeignKey(
         BugJobCategory, on_delete=models.CASCADE, related_name="jobs", null=True
     )  # Job category relation
-    responsibilities = models.TextField()  # Responsibilities section
+    responsibilities = models.TextField(blank=True, null=True)  # Responsibilities section
+    skills = models.TextField(blank=True, null=True)  # Skills section
+    qualifications = models.TextField(blank=True, null=True)  # Qualifications section
     job_posted = models.DateField()  # BugJob posted date
     job_expiry = models.DateField()  # BugJob expiry date
     salary_min = models.DecimalField(max_digits=10, decimal_places=2)  # Minimum salary
@@ -42,6 +43,27 @@ class BugJob(models.Model):
         max_length=255, default="Graduation"
     )  # e.g., Graduation
     featured = models.BooleanField(default=False)  # Is this job featured?
+    is_active = models.BooleanField(default=True)  # Is this job active?
 
     def __str__(self):
         return self.title
+    
+
+class JobsApplied(models.Model):
+    id = models.AutoField(primary_key=True)
+    job = models.ForeignKey(BugJob, on_delete=models.CASCADE)
+    user = models.ForeignKey("buguser.User", on_delete=models.CASCADE)
+    applied_date = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return self.job.title
+    
+
+class JobSaved(models.Model):
+    id = models.AutoField(primary_key=True)
+    job = models.ForeignKey(BugJob, on_delete=models.CASCADE)
+    user = models.ForeignKey("buguser.User", on_delete=models.CASCADE)
+    saved_date = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return self.job.title

@@ -64,6 +64,7 @@ class User(AbstractBaseUser):
         max_length=255,
         unique=True,
     )
+    mobile = models.CharField(max_length=15, null=True, blank=True)
     tc = models.BooleanField()
     user_type = models.ForeignKey(UserType, on_delete=models.DO_NOTHING, default=2)
     is_active = models.BooleanField(default=True)
@@ -180,29 +181,30 @@ class BugUserSession(models.Model):
         return self.token
 
 
-class BugOrganization(models.Model):
-    id = models.AutoField(primary_key=True)
-    org_name = models.CharField(max_length=100)
-    org_email = models.EmailField()
-    org_password = models.CharField(max_length=50)
-
-    def __str__(self):
-        return self.org_name
-
-
 class BugOrganizationDetail(models.Model):
     id = models.AutoField(primary_key=True)
-    organization = models.OneToOneField(BugOrganization, on_delete=models.CASCADE)
-    org_country = models.CharField(max_length=50)
-    org_city = models.CharField(max_length=50)
-    org_address = models.TextField()
-    org_phone = models.CharField(max_length=15)
-    org_profile_pic = models.ImageField(upload_to="org_profile_pics/")
-    org_website = models.CharField(max_length=100)
-    org_description = models.TextField()
+    user = models.OneToOneField(User, on_delete=models.CASCADE , related_name='organization', null=True, blank=True)
+    profile_pic = models.ImageField(upload_to="organization_pics/", null=True, blank=True)
+
+    # Personal Details
+    first_name = models.CharField(max_length=100, null=True, blank=True)
+    last_name = models.CharField(max_length=100 , null=True, blank=True)
+    current_location = models.CharField(max_length=100 , null=True, blank=True)
+
+    # Professional Details
+    current_company_name = models.CharField(max_length=255 , null=True, blank=True)
+    current_designation = models.CharField(max_length=255 , null=True, blank=True)
+    company_logo = models.ImageField(upload_to="company_logos/", null=True, blank=True)
+    address = models.CharField(max_length=255 , null=True, blank=True)
+    about_company = models.TextField(null=True, blank=True)
+    city = models.CharField(max_length=100 , null=True, blank=True)
+    state = models.CharField(max_length=100 , null=True, blank=True)
+    country = models.CharField(max_length=100 , null=True, blank=True)
+    zip_code = models.CharField(max_length=10 , null=True, blank=True)
 
     def __str__(self):
-        return self.organization.org_name
+        return self.user.email
+
 
 
 class Message(models.Model):

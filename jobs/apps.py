@@ -13,4 +13,4 @@ class JobsConfig(AppConfig):
 
         from django.core.management import call_command
 
-        # call_command("load_jobs_to_redis")
+        call_command("load_jobs_to_redis")

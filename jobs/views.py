@@ -4,10 +4,14 @@ from rest_framework import status
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from django.core.cache import cache
 from django.utils import timezone
-from .models import BugJob
-from .serializers import JobSerializer
+from .models import BugJob, JobsApplied, JobSaved, BugJobCategory
+from .serializers import JobSerializer, JobAppliedSerializer, JobSavedSerializer, JobCategorySerializer
 import json
 from datetime import datetime, date
+from django.utils import timezone
+from buguser.models import BugUserDetail
+from django.conf import settings
+from django.db.models import Q
 
 
 from drf_yasg import openapi
@@ -15,6 +19,11 @@ from drf_yasg.utils import swagger_auto_schema
 
 from rest_framework.pagination import PageNumberPagination
 
+
+
+from datetime import datetime
+from django.utils import timezone
+from django.core.cache import cache  # Import the Django cache framework
 
 class JobCreateView(APIView):
     permission_classes = [IsAuthenticated]
@@ -35,38 +44,61 @@ class JobCreateView(APIView):
         },
     )
     def post(self, request, format=None):
-        serializer = JobSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        job = serializer.save()
+        try:
+            user = request.user
+            serializer = JobSerializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
 
-        # Prepare the job data
-        job_data = {
-            "id": job.id,
-            "title": job.title.lower(),
-            "job_created": job.job_posted.isoformat(),
-            "job_expiry": job.job_expiry.isoformat(),
-            "salary_min": str(job.salary_min),
-            "salary_max": str(job.salary_max),
-            "job_type": job.job_type,
-            "featured": job.featured,
-        }
+            # Create the job instance, passing the user as the company
+            job = serializer.save(company=user)
 
-        # Calculate the expiry time in seconds
-        current_time = timezone.now()
-        expiry_seconds = int((job.job_expiry - current_time).total_seconds())
+            company_name = job.company.organization.current_company_name
+            company_logo = settings.WEB_URL + str(job.company.organization.company_logo.url)
 
-        if expiry_seconds > 0:
-            # Store job in Redis with an expiry time
-            job_key = f"job:{job.id}"
-            cache.set(job_key, json.dumps(job_data), timeout=expiry_seconds)
+            # Prepare the job data
+            job_data = {
+                "id": job.id,
+                "title": job.title.lower(),
+                "job_created": job.job_posted.isoformat(),
+                "job_expiry": job.job_expiry.isoformat(),
+                "salary_min": str(job.salary_min),
+                "salary_max": str(job.salary_max),
+                "job_type": job.job_type,
+                "featured": job.featured,
+                "company_name": company_name,
+                "company_logo": company_logo,
+                "description": job.responsibilities.lower()
+            }
 
-            # Store the job title for search purposes
-            cache.sadd("job_titles", job.title.lower())
+            # Convert job.job_expiry to datetime and make it timezone aware
+            job_expiry_datetime = datetime.combine(job.job_expiry, datetime.min.time())
+            job_expiry_aware = timezone.make_aware(job_expiry_datetime, timezone.get_current_timezone())
 
-        return Response(
-            {"msg": "BugJob Created Successfully", "job": job_data},
-            status=status.HTTP_201_CREATED,
-        )
+            # Calculate the expiry time in seconds
+            current_time = timezone.now()
+            expiry_seconds = int((job_expiry_aware - current_time).total_seconds())
+
+            if expiry_seconds > 0:
+                redis_client = cache.client.get_client()
+
+                # Store job in Redis (Django's cache framework) with an expiry time
+                job_key = f"job:{job.id}"
+                redis_client.set(job_key, json.dumps(job_data), ex=expiry_seconds)
+
+                # Add the job title to a Redis set for quick searching
+                redis_client.sadd("job_titles", job.title.lower())
+
+            return Response(
+                {"msg": "BugJob Created Successfully", "job": job_data},
+                status=status.HTTP_201_CREATED,
+            )
+        except Exception as e:
+            print(e)
+            return Response(
+                {"detail": str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+    
 
 
 class JobPagination(PageNumberPagination):
@@ -172,6 +204,9 @@ class JobSearchView(APIView):
             job_salary_max = float(job_data.get("salary_max", 0))
             job_experience = float(job_data.get("experience", 0))
             job_type_data = job_data.get("job_type", "").lower()
+            job_company_name = job_data.get("created_by", {}).get("company_name", "").lower()
+            job_company_logo = job_data.get("created_by", {}).get("company_logo", "").lower()
+            job_description = job_data.get("description", "").lower()
 
             # Salary filtering logic
             valid_salary = False
@@ -236,12 +271,6 @@ class JobDetailView(APIView):
     )
 
     def get(self, request, pk, format=None):
-        job_key = f"job:{pk}"
-        job_data = cache.get(job_key)
-
-        if job_data:
-            job_data = json.loads(job_data)
-            return Response(job_data, status=status.HTTP_200_OK)
 
         try:
             job = BugJob.objects.get(pk=pk)
@@ -249,8 +278,22 @@ class JobDetailView(APIView):
             return Response(
                 {"error": "BugJob not found"}, status=status.HTTP_404_NOT_FOUND
             )
+        
+        print(job, request.user)
+        print(JobsApplied.objects.filter(job__id=pk, user=request.user.id))
+        # check whether Job is applied or not
+        job_applied = JobsApplied.objects.filter(job__id=pk, user=request.user.id).exists()
 
-        serializer = JobSerializer(job)
+        # check whether Job is saved or not
+        job_saved = JobSaved.objects.filter(job=job, user=request.user.id).exists()
+        
+        from django.forms.models import model_to_dict
+
+        serializer = model_to_dict(job)
+        serializer["category"] = job.category.name.title() if job.category else ""
+        serializer["applied"] = job_applied
+        serializer["saved"] = job_saved
+        print(serializer)
 
         # Calculate the expiry time in seconds
         current_time = timezone.now()
@@ -263,13 +306,25 @@ class JobDetailView(APIView):
 
         expiry_seconds = int((job_expiry_datetime - current_time).total_seconds())
 
+        job_data = {
+                "id": job.id,
+                "title": job.title.lower(),
+                "job_created": job.job_posted.isoformat(),
+                "job_expiry": job.job_expiry.isoformat(),
+                "salary_min": str(job.salary_min),
+                "salary_max": str(job.salary_max),
+                "job_type": job.job_type,
+                "featured": job.featured,
+                "category": job.category.name.lower() if job.category else "",
+            }
+
         if expiry_seconds > 0:
             # Save in Redis with the new expiry time
             cache.set(
-                f"job:{job.id}", json.dumps(serializer.data), timeout=expiry_seconds
+                f"job:{job.id}", job_data, timeout=expiry_seconds
             )
 
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        return Response(serializer, status=status.HTTP_200_OK)
 
 
     @swagger_auto_schema(
@@ -301,10 +356,14 @@ class JobDetailView(APIView):
             return Response(
                 {"error": "BugJob not found"}, status=status.HTTP_404_NOT_FOUND
             )
-
-        serializer = JobSerializer(job, data=request.data)
-        serializer.is_valid(raise_exception=True)
-        serializer.save()
+        
+        if 'is_active' in request.data:
+            job.is_active = request.data.get('is_active')
+            job.save()
+        else:
+            serializer = JobSerializer(job, data=request.data)
+            serializer.is_valid(raise_exception=True)
+            serializer.save()
 
         # Calculate the expiry time in seconds
         current_time = timezone.now()
@@ -348,3 +407,447 @@ class JobDetailView(APIView):
         return Response(
             {"msg": "BugJob Deleted Successfully"}, status=status.HTTP_204_NO_CONTENT
         )
+
+
+class JobAppliedCreateView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @swagger_auto_schema(
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={
+                "job_id": openapi.Schema(
+                    type=openapi.TYPE_INTEGER, description="ID of the job applied to"
+                )
+            },
+            required=["job_id"],
+        ),
+        responses={
+            status.HTTP_201_CREATED: openapi.Response(
+                "Job Applied Successfully", openapi.Schema(type=openapi.TYPE_OBJECT)
+            ),
+            status.HTTP_400_BAD_REQUEST: openapi.Response(
+                "Invalid input",
+                openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={"detail": openapi.Schema(type=openapi.TYPE_STRING)},
+                ),
+            ),
+        },
+    )
+    def post(self, request, format=None):
+        job_id = request.data.get("job_id")
+
+        try:
+            job = BugJob.objects.get(pk=job_id)
+        except BugJob.DoesNotExist:
+            return Response(
+                {"error": "BugJob not found"}, status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Create a new job application
+        job_application = JobsApplied(job=job, user=request.user)
+        job_application.save()
+
+        return Response(
+            {"msg": "Job Applied Successfully"}, status=status.HTTP_201_CREATED
+        )
+    
+    def get(self, request, format=None):
+        job_applied = JobsApplied.objects.filter(user=request.user)
+        serializer = JobAppliedSerializer(job_applied, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    
+
+class JobSavedCreateView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @swagger_auto_schema(
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={
+                "job_id": openapi.Schema(
+                    type=openapi.TYPE_INTEGER, description="ID of the job saved"
+                )
+            },
+            required=["job_id"],
+        ),
+        responses={
+            status.HTTP_201_CREATED: openapi.Response(
+                "Job Saved Successfully", openapi.Schema(type=openapi.TYPE_OBJECT)
+            ),
+            status.HTTP_400_BAD_REQUEST: openapi.Response(
+                "Invalid input",
+                openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={"detail": openapi.Schema(type=openapi.TYPE_STRING)},
+                ),
+            ),
+        },
+    )
+    def post(self, request, format=None):
+        job_id = request.data.get("job_id")
+
+        try:
+            job = BugJob.objects.get(pk=job_id)
+        except BugJob.DoesNotExist:
+            return Response(
+                {"error": "BugJob not found"}, status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Create a new job saved record
+        job_saved = JobSaved(job=job, user=request.user)
+        job_saved.save()
+
+        return Response(
+            {"msg": "Job Saved Successfully"}, status=status.HTTP_201_CREATED
+        )
+    
+    def get(self, request, format=None):
+        job_saved = JobSaved.objects.filter(user=request.user)
+        serializer = JobSavedSerializer(job_saved, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    
+
+class JobUnSaveCreateView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @swagger_auto_schema(
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={
+                "job_id": openapi.Schema(
+                    type=openapi.TYPE_INTEGER, description="ID of the job to unsave"
+                )
+            },
+            required=["job_id"],
+        ),
+        responses={
+            status.HTTP_200_OK: openapi.Response(
+                "Job Unsaved Successfully", openapi.Schema(type=openapi.TYPE_OBJECT)
+            ),
+            status.HTTP_400_BAD_REQUEST: openapi.Response(
+                "Invalid input",
+                openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={"detail": openapi.Schema(type=openapi.TYPE_STRING)},
+                ),
+            ),
+        },
+    )
+    def post(self, request, format=None):
+        job_id = request.data.get("job_id")
+
+        try:
+            job = BugJob.objects.get(pk=job_id)
+        except BugJob.DoesNotExist:
+            return Response(
+                {"error": "BugJob not found"}, status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Delete the job saved record
+        JobSaved.objects.filter(job=job, user=request.user).delete()
+
+        return Response(
+            {"msg": "Job Unsaved Successfully"}, status=status.HTTP_200_OK)
+
+
+class JobCategoryView(APIView):
+
+    @swagger_auto_schema(
+        responses={
+            status.HTTP_200_OK: openapi.Response(
+                "List of job categories",
+                openapi.Schema(
+                    type=openapi.TYPE_ARRAY,
+                    items=openapi.Schema(
+                        type=openapi.TYPE_OBJECT,
+                        properties={
+                            "id": openapi.Schema(type=openapi.TYPE_INTEGER),
+                            "name": openapi.Schema(type=openapi.TYPE_STRING),
+                        },
+                    ),
+                ),
+            )
+        },
+    )
+    def get(self, request, format=None):
+        job_categories = BugJobCategory.objects.all()
+        serializer = JobCategorySerializer(job_categories, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    
+
+class ChangeJobStatus(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @swagger_auto_schema(
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={
+                "job_id": openapi.Schema(
+                    type=openapi.TYPE_INTEGER, description="ID of the job"
+                ),
+                "status": openapi.Schema(
+                    type=openapi.TYPE_STRING, description="New status of the job"
+                ),
+            },
+            required=["job_id", "status"],
+        ),
+        responses={
+            status.HTTP_200_OK: openapi.Response(
+                "Job status updated successfully", openapi.Schema(type=openapi.TYPE_OBJECT)
+            ),
+            status.HTTP_400_BAD_REQUEST: openapi.Response(
+                "Invalid input",
+                openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={"detail": openapi.Schema(type=openapi.TYPE_STRING)},
+                ),
+            ),
+        },
+    )
+    def post(self, request, format=None):
+        job_id = request.data.get("job_id")
+        status = request.data.get("status")
+
+        try:
+            job = BugJob.objects.get(pk=job_id)
+        except BugJob.DoesNotExist:
+            return Response(
+                {"error": "BugJob not found"}, status=status.HTTP_404_NOT_FOUND
+            )
+
+        if status not in ["active", "inactive"]:
+            return Response(
+                {"error": "Invalid status. Must be 'active' or 'inactive'"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        job.is_active = status == "active"
+        job.save()
+
+        # find the job from redis and update the is_active
+        job_key = f"job:{job_id}"
+        job_data = cache.get(job_key)
+        if job_data:
+            job_data = json.loads(job_data)
+            job_data["is_active"] = job.is_active
+            cache.set(job_key, json.dumps(job_data))
+
+        return Response(
+            {"msg": f"Job status updated to {status}"},
+            status=status.HTTP_200_OK
+        )
+    
+
+class GetJobStats(APIView):
+
+    @swagger_auto_schema(
+        responses={
+            status.HTTP_200_OK: openapi.Response(
+                "Job statistics",
+                openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        "total_jobs": openapi.Schema(type=openapi.TYPE_INTEGER),
+                        "active_jobs": openapi.Schema(type=openapi.TYPE_INTEGER),
+                        "inactive_jobs": openapi.Schema(type=openapi.TYPE_INTEGER),
+                    },
+                ),
+            )
+        },
+    )
+    def get(self, request, format=None):
+        total_jobs = BugJob.objects.count()
+        active_jobs = BugJob.objects.filter(is_active=True).count()
+        inactive_jobs = BugJob.objects.filter(is_active=False).count()
+
+        return Response(
+            {
+                "total_jobs": total_jobs,
+                "active_jobs": active_jobs,
+                "inactive_jobs": inactive_jobs,
+            },
+            status=status.HTTP_200_OK,
+        )
+    
+
+class JobListView(APIView):
+
+    @swagger_auto_schema(
+        responses={
+            status.HTTP_200_OK: openapi.Response(
+                "List of jobs",
+                openapi.Schema(
+                    type=openapi.TYPE_ARRAY,
+                    items=openapi.Schema(
+                        type=openapi.TYPE_OBJECT,
+                        properties={
+                            "id": openapi.Schema(type=openapi.TYPE_INTEGER),
+                            "title": openapi.Schema(type=openapi.TYPE_STRING),
+                            "job_created": openapi.Schema(
+                                type=openapi.TYPE_STRING, format=openapi.FORMAT_DATE
+                            ),
+                            "job_expiry": openapi.Schema(
+                                type=openapi.TYPE_STRING, format=openapi.FORMAT_DATE
+                            ),
+                            "salary_min": openapi.Schema(
+                                type=openapi.TYPE_NUMBER, format=openapi.FORMAT_FLOAT
+                            ),
+                            "salary_max": openapi.Schema(
+                                type=openapi.TYPE_NUMBER, format=openapi.FORMAT_FLOAT
+                            ),
+                            "job_type": openapi.Schema(type=openapi.TYPE_STRING),
+                            "featured": openapi.Schema(type=openapi.TYPE_BOOLEAN),
+                        },
+                    ),
+                ),
+            )
+        },
+    )
+    def get(self, request, slug, format=None):
+        """
+        Retrieve a list of jobs based on the slug filter.
+        Slug can be 'all', 'open', or 'closed'.
+        """
+        try:
+            # Base queryset
+            jobs = BugJob.objects.all()
+
+            # Apply filters based on slug
+            if slug == "open":
+                jobs = jobs.filter(is_active=True)
+            elif slug == "closed":
+                jobs = jobs.filter(is_active=False)
+            elif slug != "all":
+                return Response(
+                    {"detail": "Invalid slug parameter."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            # Optional: Implement additional filters from query parameters
+            # Example: Filter by category, location, etc.
+            category = request.query_params.get('category', None)
+            if category:
+                jobs = jobs.filter(category__iexact=category.lower())
+
+            location = request.query_params.get('location', None)
+            if location:
+                jobs = jobs.filter(location__iexact=location.lower())
+
+            response_dict = []
+            for job in jobs:
+                job_data = {
+                    "id": job.id,
+                    "title": job.title.lower(),
+                    "location": job.location,
+                    "job_created": job.job_posted.isoformat(),
+                    "job_expiry": job.job_expiry.isoformat(),
+                    "salary_min": str(job.salary_min),
+                    "salary_max": str(job.salary_max),
+                    "job_type": job.job_type,
+                    "featured": job.featured,
+                    "is_active": job.is_active,
+                }
+                response_dict.append(job_data)
+            return Response(response_dict, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            print(e)
+            # Log the exception as needed
+            return Response(
+                {"detail": "An error occurred while fetching jobs."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    # def get(self, request, slug, format=None):
+    #     # Fetch jobs from Redis or database (assuming Redis is used)
+    #     redis_client = cache.client.get_client()
+    #     job_keys = redis_client.keys("job:*")
+
+    #     # Use a pipeline to batch Redis calls
+    #     pipeline = redis_client.pipeline()
+    #     for job_key in job_keys:
+    #         pipeline.get(job_key)
+    #     job_data_list = pipeline.execute()
+
+    #     # Initialize matching jobs
+    #     matching_jobs = []
+
+    #     # Filter through the jobs
+    #     for job_data in job_data_list:
+    #         print(job_data)
+    #         job_data = json.loads(job_data.decode("utf-8"))
+    #         job_title = job_data.get("title", "").lower()
+    #         job_category = job_data.get("category", "").lower()
+    #         job_salary_min = float(job_data.get("salary_min", 0))
+    #         job_salary_max = float(job_data.get("salary_max", 0))
+    #         job_experience = float(job_data.get("experience", 0))
+    #         job_type_data = job_data.get("job_type", "").lower()
+    #         job_location = job_data.get("location", "").lower()
+
+    #         # Check filters
+    #         if slug == "all":
+    #             matching_jobs.append(job_data)
+    #         elif slug == "open":
+    #             if job_data.get("is_active", True):
+    #                 matching_jobs.append(job_data)
+    #         elif slug == "closed":
+    #             if not job_data.get("is_active", False):
+    #                 matching_jobs.append(job_data)
+
+    #     return Response(matching_jobs, status=status.HTTP_200_OK)
+                
+
+        # Sort jobs by job_created
+
+
+class ApplicantsListView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    from django.db.models import Q
+
+    def post(self, request, pk, format=None):
+        # Get the search term from the query params
+        search_term = request.data.get('searchTerm', "")
+
+        # Filter applicants by job id and search term using Q objects
+        job_applied = JobsApplied.objects.filter(
+            Q(job__id=pk) & 
+            Q(user__buguserdetail__first_name__icontains=search_term)
+        )
+
+        response_dict = []
+
+        for job in job_applied:
+            # Fetch BugUserDetail for the user
+            try:
+                bug_user_detail = BugUserDetail.objects.get(user=job.user)
+            except BugUserDetail.DoesNotExist:
+                bug_user_detail = None
+
+            # Construct the response for each applicant
+            job_data = {
+                "id": job.id,
+                "job_id": job.job.id,
+                "job_title": job.job.title,
+                "applied_date": job.applied_date,
+                "user": {
+                    "id": job.user.id,
+                    "email": job.user.email,
+                    "first_name": bug_user_detail.first_name if bug_user_detail else None,
+                    "last_name": bug_user_detail.last_name if bug_user_detail else None,
+                    "position": bug_user_detail.position if bug_user_detail else None,
+                    "dob": bug_user_detail.dob if bug_user_detail else None,
+                    "country": bug_user_detail.country if bug_user_detail else None,
+                    "city": bug_user_detail.city if bug_user_detail else None,
+                    "address": bug_user_detail.address if bug_user_detail else None,
+                    "phone": bug_user_detail.phone if bug_user_detail else None,
+                    "profile_pic": settings.WEB_URL + str(bug_user_detail.profile_pic.url) if bug_user_detail and bug_user_detail.profile_pic else None,
+                    "gender": bug_user_detail.gender if bug_user_detail else None,
+                    "about_me": bug_user_detail.about_me if bug_user_detail else None,
+                }
+            }
+            response_dict.append(job_data)
+
+        return Response(response_dict, status=status.HTTP_200_OK)
+

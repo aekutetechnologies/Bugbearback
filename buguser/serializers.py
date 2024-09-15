@@ -7,7 +7,6 @@ from .models import (
     BugUserEducation,
     BugBearSkill,
     BugUserSkill,
-    BugOrganization,
     BugOrganizationDetail,
 )
 from django.utils.encoding import smart_str, force_bytes, DjangoUnicodeDecodeError
@@ -314,14 +313,70 @@ class BugUserSkillSerializer(serializers.ModelSerializer):
 
 
 class BugOrganizationDetailSerializer(serializers.ModelSerializer):
+    profile_pic_url = serializers.SerializerMethodField()
+    email = serializers.SerializerMethodField()
+    company_logo_url = serializers.SerializerMethodField()
+
     class Meta:
         model = BugOrganizationDetail
-        fields = ['org_country', 'org_city', 'org_address', 'org_phone', 'org_profile_pic', 'org_website', 'org_description']
+        fields = [
+            'id',
+            'user',
+            'first_name',
+            'last_name',
+            'current_location',
+            'current_company_name',
+            'current_designation',
+            'about_company',
+            'address',
+            'city',
+            'state',
+            'country',
+            'zip_code',
+            'profile_pic_url',
+            'email',
+            'company_logo_url',
+        ]
+        read_only_fields = ['user', 'profile_pic']  # You might want the user to be read-only, if it's auto-assigned
 
+    def get_profile_pic_url(self, obj):
+        try:
+            if obj.profile_pic:
 
-class BugOrganizationSerializer(serializers.ModelSerializer):
-    organization_details = BugOrganizationDetailSerializer(source='bugorganizationdetail', read_only=True)
+                return settings.WEB_URL + str(obj.profile_pic.url)
+            return None
+        except BugUserDetail.DoesNotExist:
+            return None
+        
+    def get_company_logo_url(self, obj):
+        try:
+            if obj.company_logo:
 
-    class Meta:
-        model = BugOrganization
-        fields = ['id', 'org_name', 'org_email', 'organization_details']
+                return settings.WEB_URL + str(obj.company_logo.url)
+            return None
+        except BugUserDetail.DoesNotExist:
+            return None
+        
+    def get_email(self, obj):
+        return obj.user.email
+
+    def create(self, validated_data):
+        # You can add custom logic if needed before creating the instance
+        return BugOrganizationDetail.objects.create(**validated_data)
+
+    def update(self, instance, validated_data):
+        # Custom logic for updating, if necessary
+        instance.first_name = validated_data.get('first_name', instance.first_name)
+        instance.last_name = validated_data.get('last_name', instance.last_name)
+        instance.current_location = validated_data.get('current_location', instance.current_location)
+        instance.current_company_name = validated_data.get('current_company_name', instance.current_company_name)
+        instance.current_designation = validated_data.get('current_designation', instance.current_designation)
+        instance.address = validated_data.get('address', instance.address)
+        instance.about_company = validated_data.get('about_company', instance.about_company)
+        instance.city = validated_data.get('city', instance.city)
+        instance.state = validated_data.get('state', instance.state)
+        instance.country = validated_data.get('country', instance.country)
+        instance.zip_code = validated_data.get('zip_code', instance.zip_code)
+
+        instance.save()
+        return instance

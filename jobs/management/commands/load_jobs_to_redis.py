@@ -1,6 +1,7 @@
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 from django.core.cache import cache
+from django.conf import settings
 from jobs.models import BugJob
 import json
 
@@ -26,6 +27,9 @@ class Command(BaseCommand):
                 timezone.get_current_timezone(),
             )
 
+            company_name = job.company.organization.current_company_name
+            company_logo = settings.WEB_URL + str(job.company.organization.company_logo.url)
+
             # Calculate the expiry time in seconds
             expiry_seconds = int((job_expiry_datetime - current_time).total_seconds())
 
@@ -42,6 +46,11 @@ class Command(BaseCommand):
                     "experience": str(job.experience),  # Experience level
                     "job_type": job.job_type.lower(),  # Store job type in lowercase for consistent filtering
                     "featured": job.featured,
+                    "is_active": job.is_active,
+                    "location": job.location.lower(),  # Store location in lowercase for consistent filtering
+                    "company_name": company_name.lower(),
+                    "company_logo": company_logo,
+                    "description": job.responsibilities.lower()
                 }
 
                 # Store the job data in Redis with an expiry time

@@ -15,6 +15,7 @@ from .serializers import (
     BugUserEducationSerializer,
     BugBearSkillSerializer,
     BugUserSkillSerializer,
+    BugOrganizationDetailSerializer
 )
 from .models import (
     BugUserDetail,
@@ -22,7 +23,8 @@ from .models import (
     BugUserEducation,
     BugBearSkill,
     BugUserSkill,
-    User
+    User,
+    BugOrganizationDetail
 )
 import os
 from .renderers import UserRenderer
@@ -59,20 +61,44 @@ class UserRegistrationView(APIView):
 
         if user:
 
-            default_profile_pic_path = os.path.join(settings.BASE_DIR, "static") + "/img/default.jpeg"
+            if user.user_type.id == 3:
+                default_profile_pic_path = os.path.join(settings.BASE_DIR, "static") + "/img/default.jpeg"
 
-            user_profile, _ = BugUserDetail.objects.get_or_create(
-                user=user,
-                first_name="",
-                last_name="",
-                country="",
-                city="",
-                address="",
-                phone="",
-                profile_pic="",
-            )
-            with open(default_profile_pic_path, 'rb') as f:
-                user_profile.profile_pic.save('default.jpg', File(f), save=True)
+                organization_profile, _ = BugOrganizationDetail.objects.get_or_create(
+                    user=user,
+                    first_name= "",
+                    last_name= "",
+                    profile_pic= "",
+                    current_location= "",
+                    current_company_name = "",
+                    current_designation = "",
+                    about_company = "",
+                    address = "",
+                    city = "",
+                    state = "",
+                    country = "",
+                    zip_code = ""
+                    )
+                
+                with open(default_profile_pic_path, 'rb') as f:
+                    organization_profile.profile_pic.save('default.jpg', File(f), save=True)
+
+            else:
+
+                default_profile_pic_path = os.path.join(settings.BASE_DIR, "static") + "/img/default.jpeg"
+
+                user_profile, _ = BugUserDetail.objects.get_or_create(
+                    user=user,
+                    first_name="",
+                    last_name="",
+                    country="",
+                    city="",
+                    address="",
+                    phone="",
+                    profile_pic="",
+                )
+                with open(default_profile_pic_path, 'rb') as f:
+                    user_profile.profile_pic.save('default.jpg', File(f), save=True)
         token = get_tokens_for_user(user)
         return Response(
             {"token": token, "msg": "Registration Successful"},
@@ -215,6 +241,30 @@ class UserDetails(APIView):
             return Response(serializer.data, status=status.HTTP_200_OK)
         except BugUserDetail.DoesNotExist:
             return Response(status=status.HTTP_404_NOT_FOUND)
+        
+
+class BugUserDetailView(APIView):
+    renderer_classes = [UserRenderer]
+    permission_classes = [IsAuthenticated]
+
+    @swagger_auto_schema(
+        responses={200: openapi.Response("User Details", BugUserDetailSerializer)},
+    )
+    def get(self, request, pk):
+        user = User.objects.get(id=pk)
+        try:
+            user = User.objects.get(pk=pk)
+            bug_user_detail = BugUserDetail.objects.get(user=user)
+            serializer = BugUserDetailSerializer(bug_user_detail)
+            serializer.data["profile_pic"] = settings.WEB_URL + str(
+                bug_user_detail.profile_pic.url
+            )
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        except Exception as e:
+            print(e)
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        except BugUserDetail.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
 
 
 class UserProfilePic(APIView):
@@ -246,6 +296,37 @@ class UserProfilePic(APIView):
             return Response({"profile_pic_path": profile_pic_url}, status=200)
         else:
             return Response({"error": "No profile pic uploaded"}, status=400)
+        
+
+class CompanyLogoPic(APIView):
+    renderer_classes = [UserRenderer]
+    permission_classes = [IsAuthenticated]
+
+    @swagger_auto_schema(
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={"company_logo": openapi.Schema(type=openapi.TYPE_FILE)},
+        ),
+        responses={200: openapi.Response("Logo Updated")},
+    )
+    def post(self, request):
+        user = request.user
+        if request.FILES.get("company_logo"):
+            try:
+                bug_user, _ = BugOrganizationDetail.objects.get_or_create(user=user)
+            except BugOrganizationDetail.DoesNotExist:
+                return Response(
+                    {"error": "User does not have a BugOrganizationDetail object"},
+                    status=400,
+                )
+
+            company_logo = request.FILES["company_logo"]
+            bug_user.company_logo.save(company_logo.name, company_logo, save=True)
+            company_logo_url = request.build_absolute_uri(bug_user.profile_pic.url)
+
+            return Response({"company_logo_path": company_logo_url}, status=200)
+        else:
+            return Response({"error": "No logo uploaded"}, status=400)
 
     @swagger_auto_schema(
         responses={
@@ -430,3 +511,98 @@ class BugUserSkillView(APIView):
         skills = BugUserSkill.objects.filter(user=request.user)
         serializer = BugUserSkillSerializer(skills, many=True)
         return Response(serializer.data, status=200)
+
+
+class BugUserOrganisationDetailView(APIView):
+    renderer_classes = [UserRenderer]
+    permission_classes = [IsAuthenticated]
+
+    @swagger_auto_schema(
+        request_body=BugOrganizationDetailSerializer,
+        responses={
+            201: openapi.Response("Organisation Details Added", BugOrganizationDetailSerializer)
+        },
+    )
+    def post(self, request):
+        user = request.user
+        try:
+            print(request.data)
+            bug_organization_detail = BugOrganizationDetail.objects.get(user=user)
+            serializer = BugOrganizationDetailSerializer(bug_organization_detail, data=request.data)
+        except BugOrganizationDetail.DoesNotExist:
+            serializer = BugOrganizationDetailSerializer(data=request.data)
+
+        if serializer.is_valid():
+            serializer.save(user=user)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    @swagger_auto_schema(
+        responses={200: openapi.Response("Organisation Details", BugOrganizationDetailSerializer)},
+    )
+    def get(self, request):
+        user = request.user
+        try:
+            bug_organization_detail = BugOrganizationDetail.objects.get(user=user)
+            serializer = BugOrganizationDetailSerializer(bug_organization_detail)
+            serializer.data["profile_pic"] = settings.WEB_URL + str(
+                bug_organization_detail.profile_pic.url
+            )
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        except BugOrganizationDetail.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        
+
+class BugUserOrganisationProfilePic(APIView):
+    renderer_classes = [UserRenderer]
+    permission_classes = [IsAuthenticated]
+
+    @swagger_auto_schema(
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={"profile_pic": openapi.Schema(type=openapi.TYPE_FILE)},
+        ),
+        responses={200: openapi.Response("Profile Picture Updated")},
+    )
+    def post(self, request):
+        user = request.user
+        if request.FILES.get("profile_pic"):
+            try:
+                bug_organization, _ = BugOrganizationDetail.objects.get_or_create(user=user)
+            except BugOrganizationDetail.DoesNotExist:
+                return Response(
+                    {"error": "User does not have a BugOrganizationDetail object"},
+                    status=400,
+                )
+
+            profile_pic = request.FILES["profile_pic"]
+            bug_organization.profile_pic.save(profile_pic.name, profile_pic, save=True)
+            profile_pic_url = request.build_absolute_uri(bug_organization.profile_pic.url)
+
+            return Response({"profile_pic_path": profile_pic_url}, status=200)
+        else:
+            return Response({"error": "No profile pic uploaded"}, status=400)
+
+    @swagger_auto_schema(
+        responses={
+            200: openapi.Response(
+                "Profile Picture URL",
+                openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        "profile_pic_path": openapi.Schema(type=openapi.TYPE_STRING)
+                    },
+                ),
+            )
+        }
+    )
+    def get(self, request):
+        user = request.user
+        try:
+            bug_organization = BugOrganizationDetail.objects.get(user=user)
+            profile_pic_url = request.build_absolute_uri(bug_organization.profile_pic.url)
+            return Response({"profile_pic_path": profile_pic_url}, status=200)
+        except BugOrganizationDetail.DoesNotExist:
+            return Response(
+                {"error": "User does not have a BugOrganizationDetail object"}, status=400
+            )

@@ -13,6 +13,10 @@ from .views import (
     UserMessage,
     UserEducationView,
     BugBearSkillView,
+    BugUserOrganisationDetailView,
+    BugUserOrganisationProfilePic,
+    CompanyLogoPic,
+    BugUserDetailView,
 
 )
 
@@ -39,4 +43,9 @@ urlpatterns = [
     path("message/", UserMessage.as_view(), name="message"),
     path("education/", UserEducationView.as_view(), name="education"),
     path("skill/", BugBearSkillView.as_view(), name="skill"),
+    path("recruiter-profile/", BugUserOrganisationDetailView.as_view(), name="recruiter-profile"),
+    path("upload-recruiter-profile-pic/", BugUserOrganisationProfilePic.as_view(), name="upload-recruiter-profile-pic"),
+    path("upload-company-logo/", CompanyLogoPic.as_view(), name="upload-company-logo"),
+    path("candidate/<int:pk>/", BugUserDetailView.as_view(), name="user-detail"),
+
 ]
