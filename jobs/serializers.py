@@ -29,7 +29,7 @@ class JobAppliedSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = JobsApplied
-        fields = ["id", "job", "a_user", "applied_date"]
+        fields = ["id", "job", "a_user", "applied_date", "is_approved"]
 
 
 class JobSavedSerializer(serializers.ModelSerializer):

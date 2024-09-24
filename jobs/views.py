@@ -4,7 +4,7 @@ from rest_framework import status
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from django.core.cache import cache
 from django.utils import timezone
-from .models import BugJob, JobsApplied, JobSaved, BugJobCategory
+from .models import BugJob, JobsApplied, JobSaved, BugJobCategory, JobsApplied, JobVdi
 from .serializers import JobSerializer, JobAppliedSerializer, JobSavedSerializer, JobCategorySerializer
 import json
 from datetime import datetime, date
@@ -12,6 +12,7 @@ from django.utils import timezone
 from buguser.models import BugUserDetail
 from django.conf import settings
 from django.db.models import Q
+from django.forms.models import model_to_dict
 
 
 from drf_yasg import openapi
@@ -279,21 +280,17 @@ class JobDetailView(APIView):
                 {"error": "BugJob not found"}, status=status.HTTP_404_NOT_FOUND
             )
         
-        print(job, request.user)
-        print(JobsApplied.objects.filter(job__id=pk, user=request.user.id))
         # check whether Job is applied or not
         job_applied = JobsApplied.objects.filter(job__id=pk, user=request.user.id).exists()
 
         # check whether Job is saved or not
         job_saved = JobSaved.objects.filter(job=job, user=request.user.id).exists()
-        
-        from django.forms.models import model_to_dict
 
         serializer = model_to_dict(job)
         serializer["category"] = job.category.name.title() if job.category else ""
         serializer["applied"] = job_applied
         serializer["saved"] = job_saved
-        print(serializer)
+        serializer["is_approved"] = JobsApplied.objects.filter(job=job, user=request.user).first().is_approved if job_applied else False
 
         # Calculate the expiry time in seconds
         current_time = timezone.now()
@@ -452,6 +449,17 @@ class JobAppliedCreateView(APIView):
         return Response(
             {"msg": "Job Applied Successfully"}, status=status.HTTP_201_CREATED
         )
+    
+    def put(self, request, format=None):
+        job_id = int(request.data.get("job_id"))
+        user_id = request.data.get("user_id")
+        is_approved = request.data.get("is_approved")
+        job_applied = JobsApplied.objects.get(user=user_id, job=job_id)
+        job_applied.is_approved = is_approved
+        job_applied.save()
+        return Response(
+            {"msg": "Job Approved Successfully"}, status=status.HTTP_200_OK)
+
     
     def get(self, request, format=None):
         job_applied = JobsApplied.objects.filter(user=request.user)
@@ -658,9 +666,10 @@ class GetJobStats(APIView):
         },
     )
     def get(self, request, format=None):
-        total_jobs = BugJob.objects.count()
-        active_jobs = BugJob.objects.filter(is_active=True).count()
-        inactive_jobs = BugJob.objects.filter(is_active=False).count()
+        user = request.user
+        total_jobs = BugJob.objects.filter(company=user).count()
+        active_jobs = BugJob.objects.filter(company=user, is_active=True).count()
+        inactive_jobs = BugJob.objects.filter(company=user, is_active=False).count()
 
         return Response(
             {
@@ -831,6 +840,7 @@ class ApplicantsListView(APIView):
                 "job_id": job.job.id,
                 "job_title": job.job.title,
                 "applied_date": job.applied_date,
+                "is_approved": job.is_approved,
                 "user": {
                     "id": job.user.id,
                     "email": job.user.email,
@@ -851,3 +861,204 @@ class ApplicantsListView(APIView):
 
         return Response(response_dict, status=status.HTTP_200_OK)
 
+
+class JobsAppliedView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, format=None):
+
+        # Filter jobs applied by user and search term using Q objects
+        job_applied = JobsApplied.objects.filter(
+            Q(user=request.user)
+        )
+
+        response_dict = []
+
+        for job in job_applied:
+            # Construct the response for each job applied
+            job_data = {
+                "id": job.job.id,
+                "job_title": job.job.title,
+                "job_created": job.job.job_posted,
+                "job_expiry": job.job.job_expiry,
+                "salary_min": job.job.salary_min,
+                "salary_max": job.job.salary_max,
+                "job_type": job.job.job_type,
+                "featured": job.job.featured,
+                "category": job.job.category.name if job.job.category else "",
+                "location": job.job.location,
+                "is_active": job.job.is_active,
+                "description": job.job.responsibilities,
+                "applied_date": job.applied_date,
+                "is_approved": job.is_approved,
+                "company_name": job.job.company.organization.current_company_name,
+                "company_logo": settings.WEB_URL + str(job.job.company.organization.company_logo.url),
+            }
+            response_dict.append(job_data)
+
+        return Response(response_dict, status=status.HTTP_200_OK)
+    
+
+class JobsSavedView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, format=None):
+
+        # Filter jobs saved by user
+        job_saved = JobSaved.objects.filter(
+            Q(user=request.user)
+        )
+
+        response_dict = []
+
+        for job in job_saved:
+            # Construct the response for each job saved
+            job_data = {
+                "id": job.job.id,
+                "job_title": job.job.title,
+                "job_created": job.job.job_posted,
+                "job_expiry": job.job.job_expiry,
+                "salary_min": job.job.salary_min,
+                "salary_max": job.job.salary_max,
+                "job_type": job.job.job_type,
+                "featured": job.job.featured,
+                "category": job.job.category.name if job.job.category else "",
+                "location": job.job.location,
+                "is_active": job.job.is_active,
+                "description": job.job.responsibilities,
+                "company_name": job.job.company.organization.current_company_name,
+                "company_logo": settings.WEB_URL + str(job.job.company.organization.company_logo.url),
+            }
+            response_dict.append(job_data)
+
+        return Response(response_dict, status=status.HTTP_200_OK)
+    
+
+
+class JobCategoryCountView(APIView):
+
+    def get(self, request, format=None):
+        # Fetch all job categories
+        job_categories = BugJobCategory.objects.all()
+
+        response_dict = []
+
+        for category in job_categories:
+            # Count the number of jobs in each category
+            job_count = BugJob.objects.filter(category=category).count()
+
+            # Construct the response for each category
+            category_data = {
+                "id": category.id,
+                "name": category.name,
+                "job_count": job_count,
+            }
+            response_dict.append(category_data)
+
+        return Response(response_dict, status=status.HTTP_200_OK)
+    
+
+class JobVdiView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, format=None):
+        # Extract the job ID from the request data
+        job_id = request.data.get("job_id")
+        vdi_id = request.data.get("vdi_id")
+
+        try:
+            jobvdi_obj = JobVdi.objects.create(
+                job_id=job_id,
+                vdi_id=vdi_id
+            )
+            jobvdi_obj.save()
+        except Exception as e:
+            return Response(
+                {"error": str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        return Response(
+            {"msg": "Job VDI created successfully"},
+            status=status.HTTP_201_CREATED
+        )
+    
+    def get(self, request, format=None):
+        # Fetch all job VDIs
+        job_vdi = JobVdi.objects.all()
+
+        response_dict = []
+
+        for vdi in job_vdi:
+            vdi_data = {
+                "id": vdi.id,
+                "job_id": vdi.job_id,
+                "vdi_id": vdi.vdi_id,
+                "created_at": vdi.created_at,
+            }
+            response_dict.append(vdi_data)
+
+        return Response(response_dict, status=status.HTTP_200_OK)
+    
+
+class JobVdiDetailView(APIView):
+    
+    def get(self, request, format=None):
+
+        job_id = request.data.get("job_id")
+
+        try:
+            job_vdi = JobVdi.objects.filter(job_id=job_id)
+        except JobVdi.DoesNotExist:
+            return Response(
+                {"error": "Job VDI not found"}, status=status.HTTP_404_NOT_FOUND
+            )
+        
+        response_dict = []
+
+        for vdi in job_vdi:
+            vdi_data = {
+                "id": vdi.id,
+                "instance_name": vdi.name,
+                "instance_id": vdi.instance_id,
+                "instance_type": vdi.instance_type,
+                "instance_state": vdi.instance_state,
+                "instance_public_ip": vdi.instance_public_ip,
+                "instance_private_ip": vdi.instance_private_ip,
+                "instance_key_name": vdi.instance_key_name,
+                "instance_security_group": vdi.instance_security_group,
+                "instance_subnet_id": vdi.instance_subnet_id,
+                "instance_vpc_id": vdi.instance_vpc_id,
+                "instance_ami_id": vdi.instance_ami_id,
+                "instance_launch_time": vdi.instance_launch_time,
+                "instance_termination_time": vdi.instance_termination_time,
+                "instance_user_data": vdi.instance_user_data,
+                "instance_tags": vdi.instance_tags,
+                "instance_monitoring": vdi.instance_monitoring,
+                "instance_ebs_optimized": vdi.instance_ebs_optimized,
+                "instance_public_dns": vdi.instance_public_dns,
+                "instance_private_dns": vdi.instance_private_dns,
+                "instance_architecture": vdi.instance_architecture,
+                "instance_hypervisor": vdi.instance_hypervisor,
+                "instance_virtualization_type": vdi.instance_virtualization_type,
+                "instance_root_device_type": vdi.instance_root_device_type,
+                "instance_root_device_name": vdi.instance_root_device_name,
+                "instance_block_device_mappings": vdi.instance_block_device_mappings,
+                "instance_iam_instance_profile": vdi.instance_iam_instance_profile,
+                "instance_network_interfaces": vdi.instance_network_interfaces,
+                "instance_state_transition_reason": vdi.instance_state_transition_reason,
+                "instance_state_reason": vdi.instance_state_reason,
+                "instance_cpu_options": vdi.instance_cpu_options,
+                "instance_capacity_reservation_id": vdi.instance_capacity_reservation_id,
+                "instance_capacity_reservation_specification": vdi.instance_capacity_reservation_specification,
+                "instance_metadata_options": vdi.instance_metadata_options,
+                "instance_enclave_options": vdi.instance_enclave_options,
+                "instance_elastic_gpu_associations": vdi.instance_elastic_gpu_associations,
+                "instance_elastic_inference_accelerator_associations": vdi.instance_elastic_inference_accelerator_associations,
+                "instance_outpost_arn": vdi.instance_outpost_arn,
+                "instance_auto_scaling_group_associations": vdi.instance_auto_scaling_group_associations,
+                "created_at": vdi.created_at,
+            }
+
+
+            response_dict.append(vdi_data)

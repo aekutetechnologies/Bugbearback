@@ -216,8 +216,10 @@ class UserDetails(APIView):
     )
     def post(self, request):
         user = request.user
+        print(user)
         try:
             bug_user_detail = BugUserDetail.objects.get(user=user)
+            print(bug_user_detail)
             serializer = BugUserDetailSerializer(bug_user_detail, data=request.data)
         except BugUserDetail.DoesNotExist:
             serializer = BugUserDetailSerializer(data=request.data)
@@ -232,13 +234,25 @@ class UserDetails(APIView):
     )
     def get(self, request):
         user = request.user
+        user_type = user.user_type.id
+        print(user)
         try:
-            bug_user_detail = BugUserDetail.objects.get(user=user)
-            serializer = BugUserDetailSerializer(bug_user_detail)
-            serializer.data["profile_pic"] = settings.WEB_URL + str(
-                bug_user_detail.profile_pic.url
-            )
-            return Response(serializer.data, status=status.HTTP_200_OK)
+            if user_type == 3:
+                bug_user_detail = BugOrganizationDetail.objects.get(user=user)
+                print(bug_user_detail)
+                serializer = BugOrganizationDetailSerializer(bug_user_detail)
+                serializer.data["profile_pic"] = settings.WEB_URL + str(
+                    bug_user_detail.profile_pic.url
+                )
+                return Response(serializer.data, status=status.HTTP_200_OK)
+            else:
+                bug_user_detail = BugUserDetail.objects.get(user=user)
+                print(bug_user_detail)
+                serializer = BugUserDetailSerializer(bug_user_detail)
+                serializer.data["profile_pic"] = settings.WEB_URL + str(
+                    bug_user_detail.profile_pic.url
+                )
+                return Response(serializer.data, status=status.HTTP_200_OK)
         except BugUserDetail.DoesNotExist:
             return Response(status=status.HTTP_404_NOT_FOUND)
         

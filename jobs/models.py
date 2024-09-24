@@ -54,6 +54,7 @@ class JobsApplied(models.Model):
     job = models.ForeignKey(BugJob, on_delete=models.CASCADE)
     user = models.ForeignKey("buguser.User", on_delete=models.CASCADE)
     applied_date = models.DateTimeField(auto_now_add=True)
+    is_approved = models.BooleanField(default=False)
 
     def __str__(self):
         return self.job.title
@@ -67,3 +68,12 @@ class JobSaved(models.Model):
 
     def __str__(self):
         return self.job.title
+
+
+class JobVdi(models.Model):
+    id = models.AutoField(primary_key=True)
+    job = models.ForeignKey(BugJob, on_delete=models.CASCADE)
+    vdi = models.ForeignKey("vdi.VdiInstance", on_delete=models.CASCADE)
+
+    def __str__(self):
+        return self.job.title + " - " + self.vdi.name

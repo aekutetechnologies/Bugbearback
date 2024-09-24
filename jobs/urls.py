@@ -1,5 +1,5 @@
 from django.urls import path
-from .views import JobCreateView, JobDetailView, JobSearchView, JobAppliedCreateView, JobSavedCreateView, JobCategoryView, GetJobStats, ChangeJobStatus, JobListView, JobUnSaveCreateView, ApplicantsListView
+from .views import *
 
 urlpatterns = [
     path("", JobCreateView.as_view(), name="create-job"),
@@ -13,4 +13,9 @@ urlpatterns = [
     path("stats/", GetJobStats.as_view(), name="job-stats"),
     path("status/", ChangeJobStatus.as_view(), name="change-job-status"),
     path("applicants/<int:pk>/", ApplicantsListView.as_view(), name="job-applicants"),
+    path("applied/", JobsAppliedView.as_view(), name="jobs-applied"),
+    path("saved/", JobsSavedView.as_view(), name="jobs-saved"),
+    path("categories/", JobCategoryCountView.as_view(), name="job-category-count"),
+    path("vdi/", JobVdiView.as_view(), name="job-vdi"),
+    path("vdi/detail/", JobVdiDetailView.as_view(), name="job-vdi-details"),
 ]

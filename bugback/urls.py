@@ -44,6 +44,7 @@ urlpatterns = [
     path("api/posts/", include("posts.urls")),
     path("api/courses/", include("courses.urls")),
     path("api/jobs/", include("jobs.urls")),
+    path("api/vdi/", include("vdi.urls")),
     path(
         "swagger/",
         schema_view.with_ui("swagger", cache_timeout=0),
