@@ -264,7 +264,7 @@ class PostUserSerializer(serializers.ModelSerializer):
         user = obj.buguserdetail
         # Now you can access the profile_pic field of the User object
         if user.profile_pic:
-            return "http://127.0.0.1:8000" + str(user.profile_pic.url)
+            return "http://35.154.204.105" + str(user.profile_pic.url)
         return None
 
 

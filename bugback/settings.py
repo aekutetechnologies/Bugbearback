@@ -34,7 +34,7 @@ DEBUG = True
 ALLOWED_HOSTS = ["*", "bugbearback.onrender.com"]
 
 WEB_URL = "https://bugbearback.onrender.com"
-WEB_URL = "http://127.0.0.1:8000"
+WEB_URL = "http://35.154.204.105"
 # Application definition
 
 INSTALLED_APPS = [
