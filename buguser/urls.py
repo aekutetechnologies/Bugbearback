@@ -31,7 +31,7 @@ urlpatterns = [
         name="send-reset-password-email",
     ),
     path(
-        "reset-password/<uid>/<token>/",
+        "reset-password/",
         UserPasswordResetView.as_view(),
         name="reset-password",
     ),

@@ -167,9 +167,20 @@ class UserChangePasswordView(APIView):
         )
 
 
-class SendPasswordResetEmailView(APIView):
-    renderer_classes = [UserRenderer]
+from django.contrib.auth.tokens import PasswordResetTokenGenerator
+from django.utils.http import urlsafe_base64_encode
+from django.utils.encoding import force_bytes
+import requests
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+from drf_yasg.utils import swagger_auto_schema
+from drf_yasg import openapi
+from .serializers import SendPasswordResetEmailSerializer, UserPasswordResetSerializer
+from django.conf import settings
 
+
+class SendPasswordResetEmailView(APIView):
     @swagger_auto_schema(
         request_body=SendPasswordResetEmailSerializer,
         responses={200: openapi.Response("Password Reset Link Sent")},
@@ -177,15 +188,80 @@ class SendPasswordResetEmailView(APIView):
     def post(self, request, format=None):
         serializer = SendPasswordResetEmailSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        return Response(
-            {"msg": "Password Reset link sent. Please check your Email"},
-            status=status.HTTP_200_OK,
-        )
+
+        email = serializer.validated_data.get("email")
+
+        try:
+            user = User.objects.get(email=email)
+        except User.DoesNotExist:
+            return Response(
+                {"error": "User with this email does not exist."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        # Generate token and UID
+        token_generator = PasswordResetTokenGenerator()
+        token = token_generator.make_token(user)
+        uid = urlsafe_base64_encode(force_bytes(user.pk))
+
+        # Generate password reset link
+        reset_link = f"http://http://35.154.204.105/reset-password?uid={uid}&token={token}"
+
+        print(reset_link)
+
+        # EmailJS API details
+        emailjs_api_url = "https://api.emailjs.com/api/v1.0/email/send"
+
+        # EmailJS payload
+        payload = {
+            "service_id": 'service_de4izg9',
+            "template_id": 'template_tbzhvt8',
+            "user_id": 'WGPsHeCY4Y09-pxE0',
+            "template_params": {
+                "user_email": email,
+                "reset_link": reset_link,
+            },
+        }
+
+        try:
+            # Send the request to EmailJS
+            response = requests.post(
+                emailjs_api_url,
+                json=payload,
+                headers={"Content-Type": "application/json"},
+            )
+            print(response)
+            print(response.status_code)
+            print(response.text)
+
+            if response.status_code == 200:
+                return Response(
+                    {"msg": "Password Reset link sent. Please check your Email"},
+                    status=status.HTTP_200_OK,
+                )
+            else:
+                return Response(
+                    {"error": "Failed to send email. Please try again later."},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                )
+        except Exception as e:
+            return Response(
+                {"error": f"An error occurred: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+
+from django.contrib.auth.tokens import PasswordResetTokenGenerator
+from django.utils.http import urlsafe_base64_decode
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+from drf_yasg.utils import swagger_auto_schema
+from drf_yasg import openapi
+from .serializers import UserPasswordResetSerializer
 
 
 class UserPasswordResetView(APIView):
-    renderer_classes = [UserRenderer]
-
     @swagger_auto_schema(
         request_body=UserPasswordResetSerializer,
         responses={
@@ -194,11 +270,39 @@ class UserPasswordResetView(APIView):
             )
         },
     )
-    def post(self, request, uid, token, format=None):
-        serializer = UserPasswordResetSerializer(
-            data=request.data, context={"uid": uid, "token": token}
-        )
-        serializer.is_valid(raise_exception=True)
+    def post(self, request, format=None):
+        uid = request.data.get("uid")
+        token = request.data.get("token")
+        password = request.data.get("password")
+
+        if not uid or not token or not password:
+            return Response(
+                {"error": "UID, token, and password are required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            # Decode UID to get user ID
+            user_id = urlsafe_base64_decode(uid).decode()
+            user = User.objects.get(pk=user_id)
+        except (User.DoesNotExist, ValueError, TypeError, OverflowError):
+            return Response(
+                {"error": "Invalid UID or User does not exist."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        # Validate token
+        token_generator = PasswordResetTokenGenerator()
+        if not token_generator.check_token(user, token):
+            return Response(
+                {"error": "Invalid or expired token."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Reset password
+        user.set_password(password)
+        user.save()
+
         return Response(
             {"msg": "Password Reset Successfully"}, status=status.HTTP_200_OK
         )
