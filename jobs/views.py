@@ -196,6 +196,10 @@ class JobSearchView(APIView):
         # Initialize matching jobs
         matching_jobs = []
 
+        print(categories)
+
+        print(job_data_list)
+
         # Filter through the jobs
         for job_data in job_data_list:
             job_data = json.loads(job_data.decode("utf-8"))

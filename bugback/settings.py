@@ -34,7 +34,7 @@ DEBUG = True
 ALLOWED_HOSTS = ["*", "bugbearback.onrender.com"]
 
 WEB_URL = "https://bugbearback.onrender.com"
-WEB_URL = "http://35.154.204.105/api"
+WEB_URL = "http://35.154.204.105"
 # Application definition
 
 INSTALLED_APPS = [
@@ -151,7 +151,6 @@ WSGI_APPLICATION = "bugback.wsgi.application"
 #         "PORT": os.getenv("DB_PORT"),
 #     }
 # }
-
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
