@@ -13,6 +13,9 @@ from buguser.models import BugUserDetail
 from django.conf import settings
 from django.db.models import Q
 from django.forms.models import model_to_dict
+import pandas as pd
+from django.http import HttpResponse
+from datetime import timedelta
 
 
 from drf_yasg import openapi
@@ -99,7 +102,161 @@ class JobCreateView(APIView):
                 {"detail": str(e)},
                 status=status.HTTP_400_BAD_REQUEST
             )
-    
+        
+
+class BulkJobCreateView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @swagger_auto_schema(
+        manual_parameters=[
+            openapi.Parameter(
+                "file",
+                openapi.IN_FORM,
+                description="Upload an Excel file containing job data",
+                type=openapi.TYPE_FILE,
+                required=True,
+            )
+        ],
+        responses={
+            status.HTTP_201_CREATED: "Jobs Created Successfully",
+            status.HTTP_400_BAD_REQUEST: "Invalid input or error in processing file",
+        },
+    )
+    def post(self, request, format=None):
+        try:
+            user = request.user
+
+            # Check if a file is provided
+            if "file" not in request.FILES:
+                return Response({"detail": "No file provided."}, status=status.HTTP_400_BAD_REQUEST)
+
+            file = request.FILES["file"]
+
+            # Read the Excel file
+            try:
+                df = pd.read_excel(file)
+            except Exception as e:
+                return Response({"detail": f"Invalid file format: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
+
+            # Validate required columns in the Excel file
+            required_columns = [
+                "title", "category", "responsibilities", "skills", "qualifications", "salary_min", "salary_max", "location", "job_type", "experience", "education", "featured"
+            ]
+            for col in required_columns:
+                if col not in df.columns:
+                    return Response(
+                        {"detail": f"Missing required column: {col}"}, status=status.HTTP_400_BAD_REQUEST
+                    )
+
+            created_jobs = []
+            for _, row in df.iterrows():
+                # Convert row to dictionary
+                job_data = row.to_dict()
+
+                # Assign default values
+                job_data["company"] = user.id
+                job_data["is_active"] = True
+                job_data["job_posted"] = timezone.now().date()
+                job_data["job_expiry"] = (timezone.now() + timedelta(days=30)).date()
+
+                # Check if category exists
+                category_name = job_data.get("category")
+                print(category_name)
+                category = BugJobCategory.objects.filter(name=category_name).first()
+                print("1")
+                if not category:
+                    return Response({"detail": f"Category '{category_name}' does not exist."}, status=status.HTTP_400_BAD_REQUEST)
+                
+                print("2")
+
+                job_data["category"] = category.id
+
+                # Serialize and validate each job
+                serializer = JobSerializer(data=job_data)
+                serializer.is_valid(raise_exception=True)
+
+                # Save the job
+                job = serializer.save(company=user)
+
+                # Prepare job data for caching
+                job_cache_data = {
+                    "id": job.id,
+                    "title": job.title.lower(),
+                    "job_created": job.job_posted.isoformat(),
+                    "job_expiry": job.job_expiry.isoformat(),
+                    "salary_min": str(job.salary_min),
+                    "salary_max": str(job.salary_max),
+                    "job_type": job.job_type,
+                    "featured": job.featured,
+                    "location": job.location,
+                    "responsibilities": job.responsibilities.lower(),
+                    "skills": job.skills.lower(),
+                    "qualifications": job.qualifications.lower(),
+                }
+
+                # Cache the job in Redis
+                job_expiry_datetime = datetime.combine(job.job_expiry, datetime.min.time())
+                job_expiry_aware = timezone.make_aware(job_expiry_datetime, timezone.get_current_timezone())
+                current_time = timezone.now()
+                expiry_seconds = int((job_expiry_aware - current_time).total_seconds())
+
+                if expiry_seconds > 0:
+                    redis_client = cache.client.get_client()
+                    job_key = f"job:{job.id}"
+                    redis_client.set(job_key, json.dumps(job_cache_data), ex=expiry_seconds)
+                    redis_client.sadd("job_titles", job.title.lower())
+
+                created_jobs.append(job_cache_data)
+
+            return Response(
+                {"msg": f"{len(created_jobs)} Jobs Created Successfully", "jobs": created_jobs},
+                status=status.HTTP_201_CREATED,
+            )
+        except Exception as e:
+            print(e)
+            return Response(
+                {"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST
+            )
+
+def download_sample_excel(request):
+    """
+    View to download a sample Excel file for bulk job creation.
+    """
+    # Define the sample data matching the model structure
+    sample_data = {
+        "title": ["Software Engineer", "Data Analyst"],
+        "category": ["Engineering", "Analytics"],
+        "responsibilities": [
+            "Develop and maintain software applications.",
+            "Analyze data and generate business reports."
+        ],
+        "skills": ["Python, Django", "SQL, Excel"],
+        "qualifications": [
+            "Bachelor's degree in Computer Science or related field.",
+            "Master's degree in Analytics or equivalent."
+        ],
+        "salary_min": [50000, 45000],
+        "salary_max": [70000, 65000],
+        "location": ["New York, USA", "San Francisco, USA"],
+        "job_type": ["Full Time", "Part Time"],
+        "experience": [2.0, 1.5],
+        "education": ["Bachelor's", "Master's"],
+        "featured": [True, False],
+    }
+
+    # Create a DataFrame from the sample data
+    df = pd.DataFrame(sample_data)
+
+    # Create an HTTP response for Excel file download
+    response = HttpResponse(content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    response["Content-Disposition"] = 'attachment; filename="sample_jobs.xlsx"'
+
+    # Write the DataFrame to the response as an Excel file
+    with pd.ExcelWriter(response, engine="openpyxl") as writer:
+        df.to_excel(writer, index=False, sheet_name="Sample Jobs")
+
+    return response
+
 
 
 class JobPagination(PageNumberPagination):

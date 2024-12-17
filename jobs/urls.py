@@ -18,4 +18,6 @@ urlpatterns = [
     path("categories/", JobCategoryCountView.as_view(), name="job-category-count"),
     path("vdi/", JobVdiView.as_view(), name="job-vdi"),
     path("vdi/detail/", JobVdiDetailView.as_view(), name="job-vdi-details"),
+    path("bulk-upload/", BulkJobCreateView.as_view(), name="job-bulk"),
+    path("sample-file/", download_sample_excel, name="download_sample_excel"),
 ]
