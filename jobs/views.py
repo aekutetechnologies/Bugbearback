@@ -16,6 +16,7 @@ from django.forms.models import model_to_dict
 import pandas as pd
 from django.http import HttpResponse
 from datetime import timedelta
+from django.core.paginator import Paginator
 
 
 from drf_yasg import openapi
@@ -260,41 +261,31 @@ def download_sample_excel(request):
 
 
 class JobPagination(PageNumberPagination):
-    page_size = 10  # Default number of items per page
-    page_query_param = "page"
+    page_size = 10
     page_size_query_param = "page_size"
     max_page_size = 100
 
+    def get_paginated_response(self, data):
+        return Response({
+            "count": self.page.paginator.count,
+            "next": self.get_next_link(),
+            "previous": self.get_previous_link(),
+            "results": data,
+        })
+
 
 class JobSearchView(APIView):
-
     @swagger_auto_schema(
         request_body=openapi.Schema(
             type=openapi.TYPE_OBJECT,
             properties={
-                "title": openapi.Schema(
-                    type=openapi.TYPE_STRING, description="Title to search"
-                ),
-                "page": openapi.Schema(
-                    type=openapi.TYPE_INTEGER, description="Page number", default=1
-                ),
-                "page_size": openapi.Schema(
-                    type=openapi.TYPE_INTEGER,
-                    description="Number of items per page",
-                    default=10,
-                ),
-                "category": openapi.Schema(
-                    type=openapi.TYPE_ARRAY, items=openapi.Schema(type=openapi.TYPE_STRING), description="List of categories to filter"
-                ),
-                "salaryRange": openapi.Schema(
-                    type=openapi.TYPE_ARRAY, items=openapi.Schema(type=openapi.TYPE_STRING), description="List of salary ranges"
-                ),
-                "experienceLevel": openapi.Schema(
-                    type=openapi.TYPE_ARRAY, items=openapi.Schema(type=openapi.TYPE_STRING), description="List of experience levels"
-                ),
-                "jobType": openapi.Schema(
-                    type=openapi.TYPE_ARRAY, items=openapi.Schema(type=openapi.TYPE_STRING), description="List of job types"
-                ),
+                "title": openapi.Schema(type=openapi.TYPE_STRING, description="Search title"),
+                "page": openapi.Schema(type=openapi.TYPE_INTEGER, description="Page number", default=1),
+                "page_size": openapi.Schema(type=openapi.TYPE_INTEGER, description="Items per page", default=10),
+                "category": openapi.Schema(type=openapi.TYPE_ARRAY, items=openapi.Schema(type=openapi.TYPE_STRING)),
+                "salaryRange": openapi.Schema(type=openapi.TYPE_ARRAY, items=openapi.Schema(type=openapi.TYPE_STRING)),
+                "experienceLevel": openapi.Schema(type=openapi.TYPE_ARRAY, items=openapi.Schema(type=openapi.TYPE_STRING)),
+                "jobType": openapi.Schema(type=openapi.TYPE_ARRAY, items=openapi.Schema(type=openapi.TYPE_STRING)),
             },
             required=["page", "page_size"],
         ),
@@ -302,106 +293,81 @@ class JobSearchView(APIView):
             200: openapi.Response(
                 "List of jobs",
                 openapi.Schema(
-                    type=openapi.TYPE_ARRAY,
-                    items=openapi.Schema(
-                        type=openapi.TYPE_OBJECT,
-                        properties={
-                            "id": openapi.Schema(type=openapi.TYPE_INTEGER),
-                            "title": openapi.Schema(type=openapi.TYPE_STRING),
-                            "job_created": openapi.Schema(
-                                type=openapi.TYPE_STRING, format=openapi.FORMAT_DATE
-                            ),
-                            "job_expiry": openapi.Schema(
-                                type=openapi.TYPE_STRING, format=openapi.FORMAT_DATE
-                            ),
-                            "salary_min": openapi.Schema(
-                                type=openapi.TYPE_NUMBER, format=openapi.FORMAT_FLOAT
-                            ),
-                            "salary_max": openapi.Schema(
-                                type=openapi.TYPE_NUMBER, format=openapi.FORMAT_FLOAT
-                            ),
-                            "job_type": openapi.Schema(type=openapi.TYPE_STRING),
-                            "featured": openapi.Schema(type=openapi.TYPE_BOOLEAN),
-                        },
-                    ),
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        "count": openapi.Schema(type=openapi.TYPE_INTEGER, description="Total count"),
+                        "next": openapi.Schema(type=openapi.TYPE_STRING, description="Next page URL"),
+                        "previous": openapi.Schema(type=openapi.TYPE_STRING, description="Previous page URL"),
+                        "results": openapi.Schema(type=openapi.TYPE_ARRAY, items=openapi.Schema(type=openapi.TYPE_OBJECT)),
+                    },
                 ),
             )
         },
     )
     def post(self, request, format=None):
-        # Extracting filter parameters from the request
+        # Extract filter parameters
         search_query = request.data.get("title", "").lower()
         categories = request.data.get("category", [])
         salary_ranges = request.data.get("salaryRange", [])
         experience_levels = request.data.get("experienceLevel", [])
         job_types = request.data.get("jobType", [])
 
-        # Get pagination parameters
-        page = request.data.get("page", 1)
-        page_size = request.data.get("page_size", 10)
-
-        # Fetch jobs from Redis or database (assuming Redis is used)
+        # Fetch data from Redis
         redis_client = cache.client.get_client()
         job_keys = redis_client.keys("job:*")
 
-        # Use a pipeline to batch Redis calls
         pipeline = redis_client.pipeline()
         for job_key in job_keys:
             pipeline.get(job_key)
         job_data_list = pipeline.execute()
 
-        # Initialize matching jobs
+        # Filter jobs
         matching_jobs = []
-
-        print(categories)
-
-        print(job_data_list)
-
-        # Filter through the jobs
         for job_data in job_data_list:
             job_data = json.loads(job_data.decode("utf-8"))
             job_title = job_data.get("title", "").lower()
             job_category = job_data.get("category", "").lower()
             job_salary_min = float(job_data.get("salary_min", 0))
             job_salary_max = float(job_data.get("salary_max", 0))
-            job_experience = float(job_data.get("experience", 0))
+            job_experience = job_data.get("experience", "").lower()
             job_type_data = job_data.get("job_type", "").lower()
-            job_company_name = job_data.get("created_by", {}).get("company_name", "").lower()
-            job_company_logo = job_data.get("created_by", {}).get("company_logo", "").lower()
-            job_description = job_data.get("description", "").lower()
 
             # Salary filtering logic
-            valid_salary = False
-            for salary_range in salary_ranges:
-                try:
-                    min_salary, max_salary = map(float, salary_range.split("-"))
-                    if min_salary <= job_salary_min <= max_salary:
-                        valid_salary = True
-                        break
-                except ValueError:
-                    valid_salary = False  # Invalid salary range format
+            valid_salary = any(
+                float(sr.split("-")[0]) <= job_salary_min <= float(sr.split("-")[1])
+                for sr in salary_ranges if "-" in sr
+            )
 
-            # Check filters
             if (
                 (not search_query or search_query in job_title)
                 and (not categories or job_category in [cat.lower() for cat in categories])
-                and (valid_salary or not salary_ranges)  # If no salary range provided, skip filtering
-                and (not experience_levels or any(exp_level.lower() in job_data.get("experience", "").lower() for exp_level in experience_levels))
+                and (not salary_ranges or valid_salary)
+                and (not experience_levels or any(exp.lower() in job_experience for exp in experience_levels))
                 and (not job_types or job_type_data in [jt.lower() for jt in job_types])
             ):
                 matching_jobs.append(job_data)
 
-        # Sort jobs by job_created
+        # Sort by creation date
         matching_jobs.sort(key=lambda x: x.get("job_created"), reverse=True)
 
         # Apply pagination
-        paginator = JobPagination()
-        paginator.page_size = page_size
-        paginated_jobs = paginator.paginate_queryset(matching_jobs, request)
+        paginator = Paginator(matching_jobs, request.data.get("page_size", 10))
+        page_number = request.data.get("page", 1)
 
-        # Return the paginated response
-        return paginator.get_paginated_response(paginated_jobs)
+        try:
+            paginated_jobs = paginator.page(page_number)
+        except Exception:
+            return Response({"error": "Invalid page number"}, status=400)
 
+        # Build paginated response
+        response_data = {
+            "count": paginator.count,
+            "next": paginated_jobs.has_next() and f"?page={paginated_jobs.next_page_number()}" or None,
+            "previous": paginated_jobs.has_previous() and f"?page={paginated_jobs.previous_page_number()}" or None,
+            "results": list(paginated_jobs),
+        }
+
+        return Response(response_data)
 
 
 

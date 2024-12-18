@@ -17,6 +17,8 @@ from .views import (
     BugUserOrganisationProfilePic,
     CompanyLogoPic,
     BugUserDetailView,
+    DeleteAccountView,
+    SendSubscribeEmailView
 
 )
 
@@ -35,6 +37,11 @@ urlpatterns = [
         UserPasswordResetView.as_view(),
         name="reset-password",
     ),
+    path(
+        "send-subscribe/",
+        SendSubscribeEmailView.as_view(),
+        name="send-subscribe"
+    ),
     path("sso/", include("allauth.urls")),
     path("user-details/", UserDetails.as_view(), name="user-details"),
     path("upload-profile-pic/", UserProfilePic.as_view(), name="upload-profile-pic"),
@@ -47,5 +54,6 @@ urlpatterns = [
     path("upload-recruiter-profile-pic/", BugUserOrganisationProfilePic.as_view(), name="upload-recruiter-profile-pic"),
     path("upload-company-logo/", CompanyLogoPic.as_view(), name="upload-company-logo"),
     path("candidate/<int:pk>/", BugUserDetailView.as_view(), name="user-detail"),
+    path("delete/", DeleteAccountView.as_view(), name="delete-user")
 
 ]

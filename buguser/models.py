@@ -74,6 +74,7 @@ class User(AbstractBaseUser):
     created_via = models.ForeignKey(
         UserCreationMethod, on_delete=models.DO_NOTHING, default=1
     )
+    is_deleted = models.BooleanField(default=False)
 
     objects = UserManager()
 
