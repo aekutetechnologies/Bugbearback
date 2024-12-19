@@ -33,8 +33,9 @@ DEBUG = True
 
 ALLOWED_HOSTS = ["*", "bugbearback.onrender.com"]
 
-WEB_URL = "https://bugbearback.onrender.com"
-WEB_URL = "http://35.154.204.105"
+# WEB_URL = "https://bugbearback.onrender.com"
+# WEB_URL = "http://35.154.204.105"
+WEB_URL = "https://bugbear.in"
 # Application definition
 
 INSTALLED_APPS = [
@@ -152,6 +153,7 @@ WSGI_APPLICATION = "bugback.wsgi.application"
 #     }
 # }
 
+
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
         "rest_framework_simplejwt.authentication.JWTAuthentication",
@@ -264,4 +266,5 @@ CACHES = {
         },
     }
 }
+
 
