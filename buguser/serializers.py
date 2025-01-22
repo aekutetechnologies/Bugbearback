@@ -249,23 +249,36 @@ class PostUserSerializer(serializers.ModelSerializer):
     last_name = serializers.SerializerMethodField()
 
     class Meta:
-        model = BugUserDetail
+        model = User  # Assuming the main model is User
         fields = ["id", "first_name", "last_name", "profile_pic_url"]
 
     def get_first_name(self, obj):
-        print(obj.buguserdetail)
-        return obj.buguserdetail.first_name
+        # Check if BugUserDetail exists for the user
+        if hasattr(obj, "buguserdetail"):
+            return obj.buguserdetail.first_name
+        # Check if BugOrganizationDetail exists for the user
+        elif hasattr(obj, "bugorganizationdetail"):
+            return obj.bugorganizationdetail.first_name
+        return None
 
     def get_last_name(self, obj):
-        return obj.buguserdetail.last_name
+        # Check if BugUserDetail exists for the user
+        if hasattr(obj, "buguserdetail"):
+            return obj.buguserdetail.last_name
+        # Check if BugOrganizationDetail exists for the user
+        elif hasattr(obj, "bugorganizationdetail"):
+            return obj.bugorganizationdetail.last_name
+        return None
 
     def get_profile_pic_url(self, obj):
-        # Access the User object associated with the BugUserDetail object
-        user = obj.buguserdetail
-        # Now you can access the profile_pic field of the User object
-        if user.profile_pic:
-            return "http://35.154.204.105" + str(user.profile_pic.url)
+        # Check if BugUserDetail exists for the user
+        if hasattr(obj, "buguserdetail") and obj.buguserdetail.profile_pic:
+            return settings.WEB_URL + str(obj.buguserdetail.profile_pic.url)
+        # Check if BugOrganizationDetail exists for the user
+        elif hasattr(obj, "bugorganizationdetail") and obj.bugorganizationdetail.profile_pic:
+            return settings.WEB_URL + str(obj.bugorganizationdetail.profile_pic.url)
         return None
+
 
 
 class MessageSerializer(serializers.ModelSerializer):

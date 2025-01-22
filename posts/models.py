@@ -7,7 +7,6 @@ from buguser.models import User
 class Post(models.Model):
     id = models.AutoField(primary_key=True)
     user = models.ForeignKey(User, on_delete=models.CASCADE)
-    title = models.CharField(max_length=255)
     content = models.TextField()
     image = models.ImageField(upload_to="posts", null=True)
     likes = models.ManyToManyField(User, related_name="post_likes", blank=True)

@@ -1,5 +1,5 @@
 from drf_yasg.utils import swagger_auto_schema
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
@@ -9,26 +9,48 @@ from .serializers import (
     PostCategorySerializer,
     CommentSerializer,
 )
+from rest_framework.pagination import PageNumberPagination
 from .models import Post, PostCategory, Comment
 from buguser.renderers import UserRenderer
 from django.core.paginator import Paginator
 from rest_framework.exceptions import PermissionDenied, NotFound
 
 # Create your views here.
-
+class PostPagination(PageNumberPagination):
+    page_size = 5  # Default number of posts per page
+    page_size_query_param = 'page_size'  # Allows the client to specify the page size
+    max_page_size = 100  # Maximum page size the client can request
 
 class PostListCreateView(APIView):
     renderer_classes = [UserRenderer]
-    permission_classes = [IsAuthenticated]
+
+    pagination_class = PostPagination
+
+    def get_permissions(self):
+        if self.request.method == 'GET':
+            return [AllowAny()]
+        return [IsAuthenticated()]
 
     @swagger_auto_schema(
         operation_summary="Retrieve all posts of the logged-in user",
         responses={200: PostSerializer(many=True)},
     )
     def get(self, request, format=None):
-        posts = Post.objects.filter(user=request.user)
-        serializer = PostSerializer(posts, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+
+        page = request.query_params.get('page', 1)  # Default to page 1
+        page_size = request.query_params.get('page_size', 5)
+
+        posts = Post.objects.all().order_by("-created_at")
+        # Paginate the queryset using the provided page and page_size
+        paginator = self.pagination_class()
+        paginator.page_size = int(page_size)  # Set page size dynamically
+        result_page = paginator.paginate_queryset(posts, request)
+        
+        # Serialize the posts
+        serializer = PostSerializer(result_page, many=True)
+        
+        # Return the paginated response
+        return paginator.get_paginated_response(serializer.data)
 
     @swagger_auto_schema(
         operation_summary="Create a new post",
@@ -36,6 +58,7 @@ class PostListCreateView(APIView):
         responses={201: PostSerializer},
     )
     def post(self, request, format=None):
+
         serializer = PostSerializer(data=request.data, context={"request": request})
         if serializer.is_valid():
             serializer.save()
@@ -45,7 +68,11 @@ class PostListCreateView(APIView):
 
 class PostDetailView(APIView):
     renderer_classes = [UserRenderer]
-    permission_classes = [IsAuthenticated]
+
+    def get_permissions(self):
+        if self.request.method == 'GET':
+            return [AllowAny()]
+        return [IsAuthenticated()]
 
     def get_object(self, pk):
         post = get_object_or_404(Post, pk=pk)
@@ -58,7 +85,8 @@ class PostDetailView(APIView):
         responses={200: PostSerializer, 404: "Not Found"},
     )
     def get(self, request, pk, format=None):
-        post = self.get_object(pk)
+
+        post = Post.objects.get(pk=pk)
         serializer = PostSerializer(post)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
@@ -68,6 +96,7 @@ class PostDetailView(APIView):
         responses={200: PostSerializer, 400: "Bad Request", 403: "Permission Denied"},
     )
     def put(self, request, pk, format=None):
+
         post = self.get_object(pk)
         serializer = PostSerializer(post, data=request.data)
         if serializer.is_valid():
@@ -80,6 +109,7 @@ class PostDetailView(APIView):
         responses={204: "No Content", 404: "Not Found"},
     )
     def delete(self, request, pk, format=None):
+
         post = self.get_object(pk)
         post.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
@@ -171,7 +201,11 @@ class LikePostView(APIView):
 
 class CommentListView(APIView):
     renderer_classes = [UserRenderer]
-    permission_classes = [IsAuthenticated]
+
+    def get_permissions(self):
+        if self.request.method == 'GET':
+            return [AllowAny()]
+        return [IsAuthenticated()]
 
     @swagger_auto_schema(
         operation_summary="Retrieve comments for a specific post",
@@ -200,9 +234,14 @@ class CommentListView(APIView):
             serializer = CommentSerializer(
                 data=request.data, context={"request": request}
             )
+            print("here")
             if serializer.is_valid():
+                print("here 1")
                 serializer.save()
                 return Response(serializer.data, status=status.HTTP_201_CREATED)
+            else:
+                print("here 2")
+                return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         except NotFound:
             return Response(
                 {"error": "Post not found."}, status=status.HTTP_404_NOT_FOUND
@@ -220,6 +259,7 @@ class CommentUpdateView(APIView):
     )
     def put(self, request, comment_id, format=None):
         comment = get_object_or_404(Comment, id=comment_id)
+        user = request.user
         serializer = CommentSerializer(comment, data=request.data)
         if serializer.is_valid():
             serializer.save()

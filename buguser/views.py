@@ -92,9 +92,9 @@ class UserRegistrationView(APIView):
                         user=user,
                         first_name="",
                         last_name="",
-                        country="",
-                        city="",
-                        address="",
+                        country="Remote",
+                        city="Remote",
+                        address="Remote",
                         phone="",
                         profile_pic="",
                     )
